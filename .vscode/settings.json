@@ -42,7 +42,18 @@
         "sstream": "cpp",
         "numeric": "cpp",
         "algorithm": "cpp",
-        "xcomplex": "cpp"
+        "xcomplex": "cpp",
+        "array": "cpp",
+        "*.tcc": "cpp",
+        "cctype": "cpp",
+        "clocale": "cpp",
+        "cwctype": "cpp",
+        "unordered_map": "cpp",
+        "fstream": "cpp",
+        "optional": "cpp",
+        "string_view": "cpp",
+        "tuple": "cpp",
+        "valarray": "cpp"
     },
     "terminal.integrated.shell.windows": "cmd.exe"
 }
