@@ -1,11 +1,13 @@
-#include <vector>
+#include <valarray>
 #include <cmath>
 #include <complex>
 #include <numeric>
 #include <algorithm>
 #include <iostream>
 
-void prints(std::vector<std::vector<double>> f3d)
+std::valarray<double> magfd(int date, int itype, double alt, double colat, double elong);
+
+void prints(std::valarray<std::valarray<double>> f3d)
 {
     for (int i = 0; i < f3d.size(); i++)
     {
@@ -17,7 +19,7 @@ void prints(std::vector<std::vector<double>> f3d)
     }
 }
 
-void prints1(std::vector<double> f3d)
+void prints1(std::valarray<double> f3d)
 {
     for (int i = 0; i < f3d.size(); i++)
     {
@@ -26,7 +28,7 @@ void prints1(std::vector<double> f3d)
     std::cout << "\n";
 }
 
-std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
+std::valarray<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
 {
     // NSKEW - Compute skewness parameter and amplitude factor
     //  following Schouten (1971)
@@ -54,9 +56,9 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     // See skew.m for more general calculation
     //---------------------------------------------------------
     double rad = atan(1.0) * 4 / 180;
-    // get unit vectors
+    // get unit valarrays
     double colat = 90.0 - rlat;
-    std::vector<double> y = magfd(abs(yr), 1, zobs, colat, rlon);
+    std::valarray<double> y = magfd(abs(yr), 1, zobs, colat, rlon);
     // compute skewness parameter
     double bx = y[0];
     double by = y[1];
@@ -73,7 +75,7 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         //  NOTE FOR GEOCENTRIC DIPOLE TAN(INC)=2*TAN(LAT)
         //if abs(sdec) > 0. | abs(sdip) > 0.
         if (yr > 0) {
-            printf(" NON-GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
+            printf(" NON-GEOCENTRIC MAGNETIZATION valarray SPECIFIED:\n");
             printf(" //10.4f = DESIRED MAGNETIZATION DECLINATION (+CW FROM N)\n", sdec);
             printf(" //10.4f = DESIRED MAGNETIZATION INCLINATION (+DN)\n", sdip);
         } 
@@ -81,7 +83,7 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         sdip = atan2(2. * sin(rlat * rad), cos(rlat * rad)) / rad;
         sdec = 0;
         if (yr > 0) {
-            printf(" GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
+            printf(" GEOCENTRIC MAGNETIZATION valarray SPECIFIED:\n");
             printf(" //10.4f = GEOCENTRIC DIPOLE INCLINATION \n", sdip);
             printf(" //10.3f = GEOCENTRIC DECLINATION ASSUMED\n", sdec);
         }
@@ -103,23 +105,23 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         theta = theta - 360;
         }
     }
-    // compute unit vectors for a check
-    std::vector<double> hatm;
-    std::vector<double>hatb;
-    hatm.push_back(cos(sdip * rad) * sin((sdec - slin) * rad));
-    hatm.push_back(cos(sdip * rad) * cos((sdec - slin) * rad));
-    hatm.push_back(-sin(sdip * rad));
-    hatb.push_back(cos(incl1 * rad) * sin((decl1 - slin) * rad));
-    hatb.push_back(cos(incl1 * rad) * cos((decl1 - slin) * rad));
-    hatb.push_back(-sin(incl1 * rad));
+    // compute unit valarrays for a check
+    std::valarray<double> hatm;
+    std::valarray<double>hatb;
+    hatm[0] = (cos(sdip * rad) * sin((sdec - slin) * rad));
+    hatm[1] = (cos(sdip * rad) * cos((sdec - slin) * rad));
+    hatm[2] = (-sin(sdip * rad));
+    hatb[0] = (cos(incl1 * rad) * sin((decl1 - slin) * rad));
+    hatb[1] = (cos(incl1 * rad) * cos((decl1 - slin) * rad));
+    hatb[2] = (-sin(incl1 * rad));
     //
     if (yr > 0) {
-        printf("  //10.6f //10.6f //10.6f = MAGNETIZATION UNIT VECTOR\n", hatm[0], hatm[1], hatm[2]);
-        printf("  //10.6f //10.6f //10.6f = AMBIENT FIELD UNIT VECTOR\n", hatb[0], hatb[1], hatb[2]);
+        printf("  //10.6f //10.6f //10.6f = MAGNETIZATION UNIT valarray\n", hatm[0], hatm[1], hatm[2]);
+        printf("  //10.6f //10.6f //10.6f = AMBIENT FIELD UNIT valarray\n", hatb[0], hatb[1], hatb[2]);
         printf("  COMPONENTS ARE (X,Y,Z=ALONG, ACROSS PROFILE, AND UP\n\n");
     }
 
-    std::vector<double> a({theta, ampfac});
+    std::valarray<double> a({theta, ampfac});
     return a;
 }
 
@@ -162,14 +164,16 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
 // http://deeptow.whoi.edu/matlab.html
 // Copyright: Maurice A. Tivey, 2017
 // Woods Hole Oceanographic Institution
-std::vector<double> magfd(int date, int itype, double alt, double colat, double elong)
+std::valarray<double> magfd(int date, int itype, double alt, double colat, double elong)
 {
     // Initialize IGRFYEAR as 2015
     int igrfyear = 2015;
-    std::vector<int> dgrf;
+    std::valarray<int> dgrf;
+    int j = 0;
     for (int i = 1000; i < 2015; i += 5)
     {
-        dgrf.push_back(i);
+        dgrf[j] = i;
+        j++;
     }
     std::string igrffile = "sh" + std::to_string(igrfyear);
 
@@ -184,8 +188,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     // TODO: Determine the best way to supply the data to the program -- CSV?
 
     // WARNING: TEMPORARILY HARDCODED VARIABLES
-    std::vector<int> agh({-31543, -2298, 5922, -677, 2905, -1061, 924, 1121, 1022, -1469, -330, 1256, 3, 572, 523, 876, 628, 195, 660, -69, -361, -210, 134, -75, -184, 328, -210, 264, 53, 5, -33, -86, -124, -16, 3, 63, 61, -9, -11, 83, -217, 2, -58, -35, 59, 36, -90, -69, 70, -55, -45, 0, -13, 34, -10, -41, -1, -21, 28, 18, -12, 6, -22, 11, 8, 8, -4, -14, -9, 7, 1, -13, 2, 5, -9, 16, 5, -5, 8, -18, 8, 10, -20, 1, 14, -11, 5, 12, -3, 1, -2, -2, 8, 2, 10, -1, -2, -1, 2, -3, -4, 2, 2, 1, -5, 2, -2, 6, 6, -4, 4, 0, 0, -2, 2, 4, 2, 0, 0, -6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-    std::vector<double> dgh({16.6000000000000, 12.8000000000000, -20, -13.8000000000000, 2.20000000000000, -17.4000000000000, -1, -8, 4.20000000000000, -5.60000000000000, 4.40000000000000, 0.200000000000000, 1.80000000000000, -8.60000000000000, -15, 0.200000000000000, 0, 3, -7, 0.800000000000000, 1, 2.60000000000000, -3.80000000000000, -1.40000000000000, 0, -0.200000000000000, 0, -2, 2.20000000000000, -1.80000000000000, 2, -0.200000000000000, 2.80000000000000, 3.80000000000000, 2, 1.40000000000000, 0.400000000000000, -0.200000000000000, 1.80000000000000, -2, 1.60000000000000, -0.400000000000000, -0.800000000000000, -1.20000000000000, 0.200000000000000, 0, 0.600000000000000, 2.40000000000000, 0, -1.60000000000000, 2.20000000000000, -0.200000000000000, 0.200000000000000, 0.400000000000000, 0.800000000000000, 1.20000000000000, 0.600000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.400000000000000, -0.400000000000000, 0.400000000000000, 0.200000000000000, 0.200000000000000, -1, -0.400000000000000, 0.200000000000000, 0.400000000000000, -0.400000000000000, -0.200000000000000, 1.20000000000000, 0.600000000000000, 0.400000000000000, -0.200000000000000, -1.40000000000000, 0, -0.200000000000000, 1.20000000000000, 0, 0, 0, 0.400000000000000, 0, 0.400000000000000, 0.200000000000000, -0.200000000000000, 0.200000000000000, -0.800000000000000, -0.200000000000000, 0.200000000000000, -0.200000000000000, 0.600000000000000, -0.600000000000000, -0.600000000000000, -0.200000000000000, -0.400000000000000, 0.200000000000000, 0, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0.200000000000000, 0.200000000000000, 0.200000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.200000000000000, 0.200000000000000, 0, 0.400000000000000, -0.400000000000000, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    std::valarray<int> agh({-31543, -2298, 5922, -677, 2905, -1061, 924, 1121, 1022, -1469, -330, 1256, 3, 572, 523, 876, 628, 195, 660, -69, -361, -210, 134, -75, -184, 328, -210, 264, 53, 5, -33, -86, -124, -16, 3, 63, 61, -9, -11, 83, -217, 2, -58, -35, 59, 36, -90, -69, 70, -55, -45, 0, -13, 34, -10, -41, -1, -21, 28, 18, -12, 6, -22, 11, 8, 8, -4, -14, -9, 7, 1, -13, 2, 5, -9, 16, 5, -5, 8, -18, 8, 10, -20, 1, 14, -11, 5, 12, -3, 1, -2, -2, 8, 2, 10, -1, -2, -1, 2, -3, -4, 2, 2, 1, -5, 2, -2, 6, 6, -4, 4, 0, 0, -2, 2, 4, 2, 0, 0, -6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    std::valarray<double> dgh({16.6000000000000, 12.8000000000000, -20, -13.8000000000000, 2.20000000000000, -17.4000000000000, -1, -8, 4.20000000000000, -5.60000000000000, 4.40000000000000, 0.200000000000000, 1.80000000000000, -8.60000000000000, -15, 0.200000000000000, 0, 3, -7, 0.800000000000000, 1, 2.60000000000000, -3.80000000000000, -1.40000000000000, 0, -0.200000000000000, 0, -2, 2.20000000000000, -1.80000000000000, 2, -0.200000000000000, 2.80000000000000, 3.80000000000000, 2, 1.40000000000000, 0.400000000000000, -0.200000000000000, 1.80000000000000, -2, 1.60000000000000, -0.400000000000000, -0.800000000000000, -1.20000000000000, 0.200000000000000, 0, 0.600000000000000, 2.40000000000000, 0, -1.60000000000000, 2.20000000000000, -0.200000000000000, 0.200000000000000, 0.400000000000000, 0.800000000000000, 1.20000000000000, 0.600000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.400000000000000, -0.400000000000000, 0.400000000000000, 0.200000000000000, 0.200000000000000, -1, -0.400000000000000, 0.200000000000000, 0.400000000000000, -0.400000000000000, -0.200000000000000, 1.20000000000000, 0.600000000000000, 0.400000000000000, -0.200000000000000, -1.40000000000000, 0, -0.200000000000000, 1.20000000000000, 0, 0, 0, 0.400000000000000, 0, 0.400000000000000, 0.200000000000000, -0.200000000000000, 0.200000000000000, -0.800000000000000, -0.200000000000000, 0.200000000000000, -0.200000000000000, 0.600000000000000, -0.600000000000000, -0.600000000000000, -0.200000000000000, -0.400000000000000, 0.200000000000000, 0, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0.200000000000000, 0.200000000000000, 0.200000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.200000000000000, 0.200000000000000, 0, 0.400000000000000, -0.400000000000000, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
     int base = 1990;
     int i = 199;
     double t = 0;
@@ -195,8 +199,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     double r = alt;
     double slat = cos(colat * d2r);
     double clat = sin(colat * d2r);
-    std::vector<double> cl({cos(elong * d2r)});
-    std::vector<double> sl({sin(elong * d2r)});
+    std::valarray<double> cl({cos(elong * d2r)});
+    std::valarray<double> sl({sin(elong * d2r)});
     double x = 0.0;
     double y = 0.0;
     double z = 0.0;
@@ -227,8 +231,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     }
     double ratio = re / r;
 
-    std::vector<double> p({2.0 * slat, 2.0 * clat, 4.5 * slat * slat - 1.5, sqrt(27) * clat * slat});
-    std::vector<double> q({-clat, slat, -3.0 * clat * slat, sqrt(3) * (slat * slat - clat * clat)});
+    std::valarray<double> p({2.0 * slat, 2.0 * clat, 4.5 * slat * slat - 1.5, sqrt(27) * clat * slat});
+    std::valarray<double> q({-clat, slat, -3.0 * clat * slat, sqrt(3) * (slat * slat - clat * clat)});
 
     double nmax = 13; // Max number of harmonic degrees , 13
 
@@ -253,10 +257,10 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
             {
                 double one = sqrt(1.0 - 0.5 / fm);
                 double j = k - n - 1;
-                p.push_back((1.0 + 1.0 / fm) * one * clat * p[j]);
-                q.push_back(one * (clat * q[j] + slat / fm * p[j]));
-                sl.push_back(sl[m - 2] * cl[0] + cl[m - 2] * sl[0]);
-                cl.push_back(cl[m - 2] * cl[0] - sl[m - 2] * sl[0]);
+                p[k] = ((1.0 + 1.0 / fm) * one * clat * p[j]);
+                q[k] = (one * (clat * q[j] + slat / fm * p[j]));
+                sl[m] = (sl[m - 2] * cl[0] + cl[m - 2] * sl[0]);
+                cl[m] = (cl[m - 2] * cl[0] - sl[m - 2] * sl[0]);
             }
             else
             {
@@ -265,8 +269,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
                 double three = (2.0 * fn - 1.0) / one;
                 i = k - n;
                 double j = k - 2 * n + 1;
-                p.push_back((fn + 1.0) * (three * slat / fn * p[i] - two / (fn - 1.0) * p[j]));
-                q.push_back(three * (slat * q[i] - clat / fn * p[i]) - two * q[j]);
+                p[k] = ((fn + 1.0) * (three * slat / fn * p[i] - two / (fn - 1.0) * p[j]));
+                q[k] = (three * (slat * q[i] - clat / fn * p[i]) - two * q[j]);
             }
         }
         //
@@ -306,7 +310,7 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     z = z * cd - one * sd;
     t = sqrt(x * x + y * y + z * z);
 
-    std::vector<double> b({x, y, z, t});
+    std::valarray<double> b({x, y, z, t});
     return b;
 }
 
@@ -344,10 +348,10 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 // MAT May  5 1995
 // MAT Mar 1996 (new igrf)
 // calls <syn3d,magfd,nskew,bpass3d>
-std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, float wl, float ws, float rlat, float rlon, int yr, float zobs, float thick, float slin, float dx, float dy, float sdec, float sdip)
+std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> f3d, std::valarray<std::valarray<double>> h, float wl, float ws, float rlat, float rlon, int yr, float zobs, float thick, float slin, float dx, float dy, float sdec, float sdip)
 {
     //error
-    std::vector<std::vector<double>> a;
+    std::valarray<std::valarray<double>> a;
     // parameters defined
     const std::complex<double> i_math(0.0, 1.0);
     const double pi = std::atan(1.0) * 4;
@@ -372,7 +376,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     printf(" slin = //12.6f\n", slin);
     printf(" Nterms,Tol //6.0f //10.5f \n", nterms, tol);
 
-    if (h.empty() || f3d.empty())
+    if (h[0][0] == NULL || f3d[0][0] == NULL)
     {
         printf("Bathy and field arrays must have values\n");
         return a;
@@ -389,16 +393,19 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     printf(" DX,DY= //10.3f //10.3f XMIN,YMIN= //10.3f  //10.3f\n", dx, dy, xmin, xmin);
 
     // remove mean from input field
-    // double mnf3d=std::accumulate(f3d.begin(), f3d.end(), 0.0)/f3d.size();
-    double total = 0;
-    std::for_each(f3d.begin(), f3d.end(), [&total](std::vector<double> v) { std::for_each(v.begin(), v.end(), [&total](double &d) { total += d; }); });
+    // double total = 0;
+    // std::for_each(f3d.begin(), f3d.end(), [&total](std::valarray<double> v) { std::for_each(v.begin(), v.end(), [&total](double &d) { total += d; }); });
 
+    // const double mnf3d = total / (f3d.size() * f3d[0].size());
+    // std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::valarray<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
+    double total = 0;
+    printf("%5.5f", f3d.sum());
+    std::for_each(std::begin(f3d), std::end(f3d), [&total](std::valarray<double> &v) { total += v.sum();});
     const double mnf3d = total / (f3d.size() * f3d[0].size());
-    std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of //10.3f from field \n", mnf3d);
 
     double colat = 90. - rlat;
-    std::vector<double> y = magfd(yr, 1, zobs, colat, rlon);
+    std::valarray<double> y = magfd(yr, 1, zobs, colat, rlon);
 
     double bx = y[0];
     double by = y[1];
@@ -408,7 +415,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     double incl1 = atan2(bz, bh) / rad;
     double theta;
     double ampfac;
-    std::vector<double> skew_array;
+    std::valarray<double> skew_array;
     if (rlat == 90)
     { // rtp anomaly
         incl1 = 90;
@@ -459,37 +466,37 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     double dky=pi/(ny*dy);
 
     //TODO
-    std::vector<double> kx=(-nx2:nx2-1).*dkx;
-    ky=(-ny2:ny2-1).*dky;
-    X=ones(size(ky))'*kx;
-    Y=ky'*ones(size(kx));
-    k= 2*sqrt(X.^2+Y.^2);  // wavenumber array
-    k=fftshift(k);
+    // std::valarray<double> kx=(-nx2:nx2-1).*dkx;
+    // ky=(-ny2:ny2-1).*dky;
+    // X=ones(size(ky))'*kx;
+    // Y=ky'*ones(size(kx));
+    // k= 2*sqrt(X.^2+Y.^2);  // wavenumber array
+    // k=fftshift(k);
 
     return a;
 }
 
 int main()
 {
-    std::vector<std::vector<double>> f3d;
+    std::valarray<std::valarray<double>> f3d;
     for (int i = 0; i < 10; i++)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (int j = 0; j < 10; j++)
         {
-            temp.push_back(i + j);
+            temp[j] = (i + j);
         }
-        f3d.push_back(temp);
+        f3d[i] = (temp);
     }
-    std::vector<std::vector<double>> h;
+    std::valarray<std::valarray<double>> h;
     for (int i = 0; i < 10; i++)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (int j = 0; j < 10; j++)
         {
-            temp.push_back(j);
+            temp[j] = (j);
         }
-        h.push_back(temp);
+        h[i] = (temp);
     }
     float wl = 0;
     float ws = 0;
