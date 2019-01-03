@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <iostream>
 
+std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
+
 void prints(std::vector<std::vector<double>> f3d)
 {
     for (int i = 0; i < f3d.size(); i++)
@@ -24,6 +26,63 @@ void prints1(std::vector<double> f3d)
         std::cout << f3d[i] << " ";
     }
     std::cout << "\n";
+}
+
+//MATLAB FUNCTION REPLICATION
+//Rotates halfway in x and y
+std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
+{
+    std::vector<std::vector<double>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    std::vector<std::vector<double>>::const_iterator last = a.end();
+    std::vector<std::vector<double>> temp(first, last);
+    for (int i = 0; i < ceil(a.size() / 2); i++)
+    {
+        temp.push_back(a[i]);
+    }
+
+    for (std::vector<double> &j : temp)
+    {
+        std::vector<double>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+        std::vector<double>::const_iterator last2 = j.end();
+        std::vector<double> temp2(first2, last2);
+        for (int i = 0; i < ceil(a.size() / 2); i++)
+        {
+            temp2.push_back(j[i]);
+        }
+        j = temp2;
+    }
+
+    return temp;
+}
+
+//Phase angle
+std::complex<double> angle(std::complex<double> a){
+    return atan2(a.real(), a.imag());
+}
+
+std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std::vector<std::complex<double>>> a)
+{
+    std::vector<std::vector<std::complex<double>>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    std::vector<std::vector<std::complex<double>>>::const_iterator last = a.end();
+    std::vector<std::vector<std::complex<double>>> temp(first, last);
+    for (int i = 0; i < ceil(a.size() / 2); i++)
+    {
+        temp.push_back(a[i]);
+    }
+
+    for (std::vector<std::complex<double>> &j : temp)
+    {
+        std::vector<std::complex<double>>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+        std::vector<std::complex<double>>::const_iterator last2 = j.end();
+        std::vector<std::complex<double>> temp2(first2, last2);
+        for (int i = 0; i < ceil(a.size() / 2); i++)
+        {
+            temp2.push_back(j[i]);
+        }
+        j = temp2;
+    }
+
+    return temp;
 }
 
 std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
@@ -64,23 +123,29 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     double bh = sqrt(pow(bx, 2) + pow(by, 2));
     double decl1 = atan2(by, bx) / rad;
     double incl1 = atan2(bz, bh) / rad;
-    if (yr > 0){
+    if (yr > 0)
+    {
         printf(" EARTH' 'S MAGNETIC FIELD DIRECTION:\n");
         printf(" //10.3f = MAGNETIC DECLINATION ( STRIKE, CW FROM N )\n", decl1);
         printf(" //10.4f = MAGNETIC INCLINATION ( DIP, POS DOWN )\n", incl1);
     }
-    if (opts){
+    if (opts)
+    {
         //  NOTE FOR GEOCENTRIC DIPOLE TAN(INC)=2*TAN(LAT)
         //if abs(sdec) > 0. | abs(sdip) > 0.
-        if (yr > 0) {
+        if (yr > 0)
+        {
             printf(" NON-GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
             printf(" //10.4f = DESIRED MAGNETIZATION DECLINATION (+CW FROM N)\n", sdec);
             printf(" //10.4f = DESIRED MAGNETIZATION INCLINATION (+DN)\n", sdip);
-        } 
-    }else {
+        }
+    }
+    else
+    {
         sdip = atan2(2. * sin(rlat * rad), cos(rlat * rad)) / rad;
         sdec = 0;
-        if (yr > 0) {
+        if (yr > 0)
+        {
             printf(" GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
             printf(" //10.4f = GEOCENTRIC DIPOLE INCLINATION \n", sdip);
             printf(" //10.3f = GEOCENTRIC DECLINATION ASSUMED\n", sdec);
@@ -96,16 +161,20 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     double inclf = atan2(tan(ra1), sin(rb1));
     double ampfac = ((sin(ra2)) * (sin(ra1))) / ((sin(inclm)) * (sin(inclf)));
     double theta = (inclm / rad) + (inclf / rad) - 180.;
-    if (theta <= -360){
+    if (theta <= -360)
+    {
         theta = theta + 360;
-    }else{
-        if (theta >= 360){
-        theta = theta - 360;
+    }
+    else
+    {
+        if (theta >= 360)
+        {
+            theta = theta - 360;
         }
     }
     // compute unit vectors for a check
     std::vector<double> hatm;
-    std::vector<double>hatb;
+    std::vector<double> hatb;
     hatm.push_back(cos(sdip * rad) * sin((sdec - slin) * rad));
     hatm.push_back(cos(sdip * rad) * cos((sdec - slin) * rad));
     hatm.push_back(-sin(sdip * rad));
@@ -113,7 +182,8 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     hatb.push_back(cos(incl1 * rad) * cos((decl1 - slin) * rad));
     hatb.push_back(-sin(incl1 * rad));
     //
-    if (yr > 0) {
+    if (yr > 0)
+    {
         printf("  //10.6f //10.6f //10.6f = MAGNETIZATION UNIT VECTOR\n", hatm[0], hatm[1], hatm[2]);
         printf("  //10.6f //10.6f //10.6f = AMBIENT FIELD UNIT VECTOR\n", hatb[0], hatb[1], hatb[2]);
         printf("  COMPONENTS ARE (X,Y,Z=ALONG, ACROSS PROFILE, AND UP\n\n");
@@ -430,42 +500,150 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
             sdec = 0;
         }
         theta = skew_array[0];
-        ampfac= skew_array[1];
+        ampfac = skew_array[1];
     }
 
-    slin=0; // slin is forced to zero
-    double ra1=incl1*rad;
-    double rb1=(decl1-slin)*rad;
+    slin = 0; // slin is forced to zero
+    double ra1 = incl1 * rad;
+    double rb1 = (decl1 - slin) * rad;
     // rb1=(slin-decl1)*rad;
-    double ra2=sdip*rad;
-    double rb2=(sdec-slin)*rad;
+    double ra2 = sdip * rad;
+    double rb2 = (sdec - slin) * rad;
     // rb2=(slin-sdec)*rad;
 
     // make wave number array
     // ni=1/nx;
-    double nx2=nx/2;
-    double nx2plus=nx2+1;
+    double nx2 = nx / 2;
+    double nx2plus = nx2 + 1;
     // x=-.5:ni:.5-ni;
     // ni=1/ny;
-    double ny2=ny/2;
-    double ny2plus=ny2+1;
+    double ny2 = ny / 2;
+    double ny2plus = ny2 + 1;
     // y=-.5:ni:.5-ni;
     // X=ones(size(y))'*x;
     // Y=y'*ones(size(x));
     // k=2*pi*sqrt(X.^2+Y.^2);  // wavenumber array
     // k= fftshift(k);
     // compute another way
-    double dkx=pi/(nx*dx);
-    double dky=pi/(ny*dy);
+    double dkx = pi / (nx * dx);
+    double dky = pi / (ny * dy);
 
-    //TODO
-    std::vector<double> kx=(-nx2:nx2-1).*dkx;
-    ky=(-ny2:ny2-1).*dky;
-    X=ones(size(ky))'*kx;
-    Y=ky'*ones(size(kx));
-    k= 2*sqrt(X.^2+Y.^2);  // wavenumber array
-    k=fftshift(k);
+    std::vector<double> kx;
+    for (int i = nx2 * -1; i < nx2; i++)
+    {
+        kx.push_back(i * dkx);
+    }
+    std::vector<double> ky;
+    for (int i = ny2 * -1; i < ny2; i++)
+    {
+        ky.push_back(i * dky);
+    }
+    std::vector<std::vector<double>> X(ky.size(), ky);
+    std::vector<std::vector<double>> Y;
+    for (auto num : kx)
+    {
+        std::vector<double> temp(kx.size(), num);
+        Y.push_back(temp);
+    }
+    std::vector<std::vector<double>> k;
+    for (int i = 0; i < X.size(); i++)
+    {
+        std::vector<double> temp;
+        for (int j = 0; j < X[0].size(); j++)
+        {
+            temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
+        }
+        k.push_back(temp);
+    } // wavenumber array
 
+    k = fftshift(k);
+
+    std::vector<std::vector<std::complex<double>>> ob;
+    std::vector<std::vector<std::complex<double>>> om;
+    for(int i = 0; i<X.size();i++){
+        std::vector<std::complex<double>> temp1;
+        std::vector<std::complex<double>> temp2;
+        for(int j = 0; j<X[i].size();j++){
+            temp1.push_back(sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[i][j], X[i][j]) + rb1));
+            temp2.push_back(sin(ra2) + i * cos(ra2) * sin(atan2(Y[i][j], X[i][j]) + rb2));
+        }
+        ob.push_back(temp1);
+        om.push_back(temp2);
+    }
+    std::vector<std::vector<std::complex<double>>> o;
+    for(int i = 0; i<X.size();i++){
+        std::vector<std::complex<double>> temp;
+        for(int j = 0; j<X[i].size();j++){
+            temp.push_back(ob[i][j]*om[i][j]);
+        }
+    }
+    
+    o = fftshift_complex(o);
+    std::vector<std::vector<std::complex<double>>> amp;
+    for(auto a: o){
+        std::vector<std::complex<double>> temp;
+        for(auto b: a){
+            temp.push_back(abs(b));
+        }
+        amp.push_back(temp);
+    }
+    // amplitude factor
+    std::vector<std::vector<std::complex<double>>> phase;
+    for(int i = 0; i<ob.size(); i++){
+        std::vector<std::complex<double>> temp;
+        for(int j = 0; j<ob[i].size(); j++){
+            temp.push_back(exp(i_math * (angle(ob[i][j]) + angle(om[i][j]))));
+        }
+        phase.push_back(temp);
+    }
+    phase = fftshift_complex(phase);
+    // phase angle
+    double constant = 2 * pi * mu;
+
+    //shift zero level of bathy
+    double hmax = *std::max_element(h[0].begin(), h[0].end());
+    for (int i = 1; i<h.size(); i){
+        double temp = *std::max_element(h[i].begin(), h[i].end());
+        if(temp>hmax)
+            hmax = temp;
+    }
+    double hmin=*std::min_element(h[0].begin(), h[0].end());
+    for (int i = 1; i<h.size(); i){
+        double temp = *std::min_element(h[i].begin(), h[i].end());
+        if(temp<hmax)
+            hmax = temp;
+    }
+    double conv=1;
+    printf(" %10.3f %10.3f = MIN, MAX OBSERVED BATHY\n",hmin,hmax);
+    printf("CONVERT BATHY (M OR KM), +DOWN or +UP)\n");
+    printf("TO BATHY (KM, +UP)\n");
+    double shift=hmax;
+    double hwiggl=abs(hmax-hmin)/2;
+    double zup=zobs-shift;
+    printf(" SHIFT ZERO OF BATHY WILL BE %8.3f\n",shift);
+    printf("THIS IS OPTIMUM FOR INVERSION.\n");
+    printf("NOTE OBSERVATIONS ARE %8.3f KM ABOVE BATHY\n",zup);
+    printf("ZOBS=%8.3f ZUP=%8.3f\n",zobs,zup);
+
+    printf("%8.3f = HWIGGL, DISTANCE TO MID-LINE OF BATHY\n",hwiggl);
+    printf("THIS IS OPTIMUM ZERO LEVEL FOR FORWARD PROBLEM\n");
+
+    // bathy zero placed halfway between extremes
+    // this is optimum for summation but not for iteration
+    // which needs zero at highest point of bathy
+    double h=h-shift+hwiggl;
+
+    // set up bandpass filter
+    double wts=bpass3d(nx,ny,dx,dy,wl,ws);
+    // do eterm
+    dexpz=exp(k.*zup);
+    dexpw=exp(-k.*hwiggl);
+    // do thickness term
+    alap=(1-exp(-k.*thick));
+    // take fft of observed magnetic field and initial m3d
+    m3d=zeros(ny,nx); % make an initial guess of 0 for m3d
+    sum1=fft2(m3d);
+    F= (fft2(f3d));
     return a;
 }
 
@@ -491,20 +669,20 @@ int main()
         }
         h.push_back(temp);
     }
-    float wl = 0;
-    float ws = 0;
+    float wl = 1;
+    float ws = 1;
     float rlat = 10;
-    float rlon = 0;
+    float rlon = 1;
     int yr = 1990;
-    float zobs = 0;
-    float thick = 0;
-    float slin = 0;
-    float dx = 0;
-    float dy = 0;
+    float zobs = 1;
+    float thick = 1;
+    float slin = 1;
+    float dx = 1;
+    float dy = 1;
 
     // Optional values, default assumes geocentric dipole hypothesis
-    float sdec = 0;
-    float sdip = 0;
+    float sdec = 1;
+    float sdip = 1;
     prints(f3d);
     prints(h);
     inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip);
