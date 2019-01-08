@@ -1,10 +1,15 @@
 #include <vector>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <cmath>
 #include <complex>
 #include <numeric>
 #include <algorithm>
 #include <iostream>
+#include <fftw3.h>
 
+#define pi atan(1)
 std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
 
 void prints(std::vector<std::vector<double>> f3d)
@@ -85,6 +90,138 @@ std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std:
     return temp;
 }
 
+void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std::vector<std::complex<double>>> &output){
+    fftw_complex *in, *out;
+    fftw_plan p;
+
+    int size = input.size(), size2 = input[0].size();
+    
+    in  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
+    out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
+    p   = fftw_plan_dft_2d(size, size2, in, out, FFTW_FORWARD, FFTW_PATIENT);
+
+    int i = 0;
+    for (int x = 0; x < size; x++)
+        for (int z = 0; z < size2; z++)
+        {
+            in[i][0] = std::real(input[x][z]);
+            in[i][1] = std::imag(input[x][z]);
+            i++;
+        }
+    printf("Done.\n");
+
+    printf("     -- Performint FFT...");
+    fftw_execute(p);
+    printf("Done.\n");
+
+    printf("     -- Retrieving data...");
+    i = 0;
+    for (int x = 0; x < size; x++){
+        for (int z = 0; z < size2; z++)
+        {
+            output[x][z] = std::complex<double>(out[i][0], out[i][1]);
+            i++;
+        }
+    }
+}
+
+std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, double dy, double wlong, double wshort){
+// BPASS3D set up bandpass filter weights in 2 dimensions
+// using a cosine tapered filter
+// Usage:  wts3d=bpass3d(nnx,nny,dx,dy,wlong,wshort);
+//
+// Maurice A. Tivey MATLAB March 1996
+// MAT Jun 2006
+// Calls <>
+//---------------------------------------------------
+    double twopi=pi*2;
+    double dk1=2*pi/((nnx-1)*dx);
+    double dk2=2*pi/((nny-1)*dy);
+    // calculate wavenumber array
+    double nx2=nnx/2;
+    double nx2plus=nx2+1;
+    double ny2=nny/2;
+    double ny2plus=ny2+1;
+    double dkx=2*pi/(nnx*dx);
+    double dky=2*pi/(nny*dy);
+    std::vector<double> kx;
+    for(int i = -nx2; i < nx2;i++){
+        kx.push_back(i*dkx);
+    }
+    std::vector<double> ky;
+    for(int i = -ny2; i<ny2;i++){
+        ky.push_back(i*dky);
+    }
+    std::vector<std::vector<double>> X(ky.size(), ky);
+    std::vector<std::vector<double>> Y;
+    for (auto num : kx)
+    {
+        std::vector<double> temp(kx.size(), num);
+        Y.push_back(temp);
+    }
+    std::vector<std::vector<double>> k;
+    for (int i = 0; i < X.size(); i++)
+    {
+        std::vector<double> temp;
+        for (int j = 0; j < X[0].size(); j++)
+        {
+            temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
+        }
+        k.push_back(temp);
+    } // wavenumber array
+    k=fftshift(k);
+
+//
+    (wshort==0) ? wshort=dx*2: wshort=dy*2;
+    (wlong==0) ? wlong=nnx*dx: wlong=nny*dy; 
+
+    double klo=twopi/wlong;
+    double khi=twopi/wshort;
+    double khif=0.5*khi;
+    double klof=2*klo;
+    double dkl=klof-klo;
+    double dkh=khi-khif;
+    printf(" BPASS3D\n SET UP BANDPASS WEIGHTS ARRAY :\n");
+    printf(" HIPASS COSINE TAPER FROM K= %10.6f TO K= %10.6f\n",klo,klof);
+    printf(" LOPASS COSINE TAPER FROM K= %10.6f TO K= %10.6f\n",khif,khi);
+    printf(" DK1,DK2= %10.4f  %10.4f\n",dk1,dk2);
+
+    double wl1=1000;
+    double  wl2=1000;
+    if(klo>0) wl1=twopi/klo; 
+    if(klof >0) wl2=twopi/klof; 
+    double wl3=twopi/khif;
+    double wl4=twopi/khi;
+    double wnx=twopi/(dk1*(nnx-1)/2);
+    double wny=twopi/(dk2*(nny-1)/2);
+
+    printf("IE BANDPASS OVER WAVELENGTHS\n");
+    printf("   INF CUT-- %8.3f --TAPER-- %8.3f (PASS) %8.3f --TAPER--%8.3f\n",wl1,wl2,wl3,wl4);
+    printf("   --  CUT TO NYQUIST X,Y= %8.3f  %8.3f\n",wnx,wny);
+    double nnx2=nnx/2+1;
+    double nny2=nny/2+1;
+    std::vector<std::vector<double>> wts(k.size(), std::vector<double>(k[0].size(), 0));  // initialise to zero
+    for (int i=0; i<nny;i++){
+        for (int j=0; j<nnx;j++){
+            if (k[i][j]>klo){ 
+                if (k[i][j]<khi) wts[i][j]=1; 
+            }
+        }
+    }
+    for (int i=0;i<nny;i++){
+        for (int j=0;j<nnx;j++){
+            if (k[i][j]>klo){ 
+                if (k[i][j]<klof) wts[i][j]=wts[i][j]*(1-cos(pi*(k[i][j]-klo)/dkl))/2;
+            }
+            if (k[i][j]>khif){ 
+                if (k[i][j]<khi) wts[i][j]=wts[i][j]*(1-cos(pi*(khi-k[i][j])/dkh))/2;
+            }
+        }
+    }
+    return wts;
+}
+
+
 std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
 {
     // NSKEW - Compute skewness parameter and amplitude factor
@@ -126,8 +263,8 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     if (yr > 0)
     {
         printf(" EARTH' 'S MAGNETIC FIELD DIRECTION:\n");
-        printf(" //10.3f = MAGNETIC DECLINATION ( STRIKE, CW FROM N )\n", decl1);
-        printf(" //10.4f = MAGNETIC INCLINATION ( DIP, POS DOWN )\n", incl1);
+        printf(" %10.3f = MAGNETIC DECLINATION ( STRIKE, CW FROM N )\n", decl1);
+        printf(" %10.4f = MAGNETIC INCLINATION ( DIP, POS DOWN )\n", incl1);
     }
     if (opts)
     {
@@ -136,8 +273,8 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         if (yr > 0)
         {
             printf(" NON-GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
-            printf(" //10.4f = DESIRED MAGNETIZATION DECLINATION (+CW FROM N)\n", sdec);
-            printf(" //10.4f = DESIRED MAGNETIZATION INCLINATION (+DN)\n", sdip);
+            printf(" %10.4f = DESIRED MAGNETIZATION DECLINATION (+CW FROM N)\n", sdec);
+            printf(" %10.4f = DESIRED MAGNETIZATION INCLINATION (+DN)\n", sdip);
         }
     }
     else
@@ -147,8 +284,8 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         if (yr > 0)
         {
             printf(" GEOCENTRIC MAGNETIZATION VECTOR SPECIFIED:\n");
-            printf(" //10.4f = GEOCENTRIC DIPOLE INCLINATION \n", sdip);
-            printf(" //10.3f = GEOCENTRIC DECLINATION ASSUMED\n", sdec);
+            printf(" %10.4f = GEOCENTRIC DIPOLE INCLINATION \n", sdip);
+            printf(" %10.3f = GEOCENTRIC DECLINATION ASSUMED\n", sdec);
         }
     }
     // compute phase and amplitude factors
@@ -184,8 +321,8 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     //
     if (yr > 0)
     {
-        printf("  //10.6f //10.6f //10.6f = MAGNETIZATION UNIT VECTOR\n", hatm[0], hatm[1], hatm[2]);
-        printf("  //10.6f //10.6f //10.6f = AMBIENT FIELD UNIT VECTOR\n", hatb[0], hatb[1], hatb[2]);
+        printf("  %10.6f %10.6f %10.6f = MAGNETIZATION UNIT VECTOR\n", hatm[0], hatm[1], hatm[2]);
+        printf("  %10.6f %10.6f %10.6f = AMBIENT FIELD UNIT VECTOR\n", hatb[0], hatb[1], hatb[2]);
         printf("  COMPONENTS ARE (X,Y,Z=ALONG, ACROSS PROFILE, AND UP\n\n");
     }
 
@@ -420,7 +557,6 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     std::vector<std::vector<double>> a;
     // parameters defined
     const std::complex<double> i_math(0.0, 1.0);
-    const double pi = std::atan(1.0) * 4;
     const double rad = pi / 180; // conversion radians to degrees
     const int mu = 100;          // conversion factor to nT
     // changeable parameters
@@ -436,11 +572,11 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     printf("        Constant thickness layer\n");
     printf("Version : 2/24/2015\n");
 
-    printf(" Zobs= //12.5f\n Rlat= //12.5f Rlon= //12.5f\n", zobs, rlat, rlon);
-    printf(" Yr= //12.5f\n", yr);
-    printf(" Thick= //12.5f\n", thick);
-    printf(" slin = //12.6f\n", slin);
-    printf(" Nterms,Tol //6.0f //10.5f \n", nterms, tol);
+    printf(" Zobs= %12.5f\n Rlat= %12.5f Rlon= %12.5f\n", zobs, rlat, rlon);
+    printf(" Yr= %12.5f\n", yr);
+    printf(" Thick= %12.5f\n", thick);
+    printf(" slin = %12.6f\n", slin);
+    printf(" Nterms,Tol %6.0f %10.5f \n", nterms, tol);
 
     if (h.empty() || f3d.empty())
     {
@@ -455,8 +591,8 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         printf(" bathy and field arrays must be of the same length\n");
         return a;
     }
-    printf(" READ //6.0f x //6.0f matrix by columns \n", nx, ny);
-    printf(" DX,DY= //10.3f //10.3f XMIN,YMIN= //10.3f  //10.3f\n", dx, dy, xmin, xmin);
+    printf(" READ %6.0f x %6.0f matrix by columns \n", nx, ny);
+    printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
 
     // remove mean from input field
     // double mnf3d=std::accumulate(f3d.begin(), f3d.end(), 0.0)/f3d.size();
@@ -465,7 +601,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
 
     const double mnf3d = total / (f3d.size() * f3d[0].size());
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
-    printf("Remove mean of //10.3f from field \n", mnf3d);
+    printf("Remove mean of %10.3f from field \n", mnf3d);
 
     double colat = 90. - rlat;
     std::vector<double> y = magfd(yr, 1, zobs, colat, rlon);
@@ -598,17 +734,16 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     }
     phase = fftshift_complex(phase);
     // phase angle
-    double constant = 2 * pi * mu;
-
+    double math_constant = 2 * pi * mu;
     //shift zero level of bathy
     double hmax = *std::max_element(h[0].begin(), h[0].end());
-    for (int i = 1; i<h.size(); i){
+    for (int i = 1; i<h.size(); i++){
         double temp = *std::max_element(h[i].begin(), h[i].end());
         if(temp>hmax)
             hmax = temp;
     }
     double hmin=*std::min_element(h[0].begin(), h[0].end());
-    for (int i = 1; i<h.size(); i){
+    for (int i = 1; i<h.size(); i++){
         double temp = *std::min_element(h[i].begin(), h[i].end());
         if(temp<hmax)
             hmax = temp;
@@ -631,19 +766,136 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     // bathy zero placed halfway between extremes
     // this is optimum for summation but not for iteration
     // which needs zero at highest point of bathy
-    double h=h-shift+hwiggl;
-
+    for(auto i: h){
+        for(auto j: i){
+            j = j - shift + hwiggl;
+        }
+    }
     // set up bandpass filter
-    double wts=bpass3d(nx,ny,dx,dy,wl,ws);
+    std::vector<std::vector<double>> wts=bpass3d(nx,ny,dx,dy,wl,ws);
     // do eterm
-    dexpz=exp(k.*zup);
-    dexpw=exp(-k.*hwiggl);
+    std::vector<std::vector<double>> dexpz;
+    for(auto a: k){
+        std::vector<double> temp;
+        for(auto b: a){
+            temp.push_back(exp(b*zup));
+        }
+        dexpz.push_back(temp);
+    }
+    std::vector<std::vector<double>> dexpw;
+    for(auto a: k){
+        std::vector<double> temp;
+        for(auto b: a){
+            temp.push_back(exp(-b*hwiggl));
+        }
+        dexpw.push_back(temp);
+    }
     // do thickness term
-    alap=(1-exp(-k.*thick));
+    std::vector<std::vector<double>> alap;
+    for(auto a: k){
+        std::vector<double> temp;
+        for(auto b: a){
+            temp.push_back(1-exp(-b*thick));
+        }
+        alap.push_back(temp);
+    }
     // take fft of observed magnetic field and initial m3d
-    m3d=zeros(ny,nx); % make an initial guess of 0 for m3d
-    sum1=fft2(m3d);
-    F= (fft2(f3d));
+    std::cout<<"Attempting fft"<<std::endl;
+    std::vector<std::vector<std::complex<double>>> m3d(ny, std::vector<std::complex<double>>(nx,0)); // make an initial guess of 0 for m3d
+
+    std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx,0));
+    fft2(f3d, F);
+    for(auto a: F){
+        for(auto b: a){
+            std::cout<<b<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    // std::vector<std::vector<double>> sum1=fft2(m3d);
+    // std::vector<std::vector<double>> F= (fft2(f3d));
+
+    int intsum=0;
+    std::vector<std::vector<double>> mlast(ny, std::vector<std::complex<double>>(nx,0));
+    std::vector<std::vector<double>> lastm3d(ny, std::vector<std::complex<double>>(nx,0));
+    std::vector<std::vector<double>> B;
+    for(int i =0; i< F.size(); i++){
+        std::vector<double> temp;
+        for(int j = 0; j< F[i].size(); j++){
+            temp.push_back((F[i][j]*dexpz)/(math_constant*alap*amp*phase));
+        }
+        B.push_back(temp);
+    }
+
+    B[0][0]=0;
+    //
+    printf(" CONVERGENCE :\n");
+    printf(" ITER  MAX_PERTURB  #_TERMS  AVG ERR  \n");
+    for (int iter = 0; iter<nitrs+1; iter++){
+        // summation loop
+        sum=zeros(ny,nx);
+        for (int nkount = 1;nkount <nterms){
+            int n=nkount-1;
+        //    n=nkount;
+            std::vector<std::vector<std::complex<double>>> MH;
+            std::vector<std::vector<std::complex<double>>> m3d2;
+            for(int i = 0; i<m3d.size(); i++){
+                std::vector<std::complex<double>> temp;
+                for(int j = 0; j < m3d[i].size(); j++){
+                    temp.push_back(m3d[i][j]*pow(h[i][j],n);
+                }
+                m3d2.push_back(temp);
+            }
+            fft2(m3d2, MH);
+            dsum=dexpw.*((k.^n)./nfac(n)).*MH;
+            sum=dsum+sum;
+            errmax=max(max( abs(real(sum)+imag(sum)) ));
+        }
+        // transform to get new solution
+        M= (B-(sum))+mlast;
+        // filter before transforming to ensure no blow ups
+        M(1,1)=0;
+        mlast=M.*wts;
+        m3d=ifft2(mlast);
+        // do convergence test
+        errmax=0;
+        s1=zeros(ny,nx);
+        s2=zeros(ny,nx);
+        dif=abs(lastm3d-m3d);
+        s2=s2+dif.*dif;
+        if errmax-max(max(dif)) < 0
+            errmax=max(max(dif));
+        end
+        lastm3d=m3d;
+        
+        avg=mean(mean(dif));
+        //  rms=sqrt(s2/(nx*ny) - avg^2);
+        if iter==1 
+            first1=errmax+1e-10; 
+            erpast=errmax;
+        end
+        if errmax > erpast
+        flag=1;  // set the flag to show diverging solution
+        //break
+        end
+        erpast=errmax;
+        // test for errmax less than tolerance
+        if errmax < tolmag
+        flag=0;
+        //break
+        end
+        fprintf('%3.0f, %10.4e, %6.0f ',iter,errmax,nkount);
+        fprintf(' %10.4e\n',avg);
+    end  // end of iteration loop
+
+    if flag == 1 
+    disp(' I would be quitting now error < tolerance ');
+    else
+    fprintf(' RESTORE ORIGINAL ZERO LEVEL\n');
+    fprintf(' SHIFT ZERO LEVEL OF BATHY BY %8.3f\n',shift);
+    h=h+shift-hwiggl;
+    end
+    //
+    m3d=real(m3d);
     return a;
 }
 
@@ -686,5 +938,6 @@ int main()
     prints(f3d);
     prints(h);
     inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip);
+    
     return 0;
 }

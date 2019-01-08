@@ -55,5 +55,5 @@
         "tuple": "cpp",
         "valarray": "cpp"
     },
-    "terminal.integrated.shell.windows": "cmd.exe"
+    "terminal.integrated.shell.windows": "bash.exe"
 }

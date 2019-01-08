@@ -3,10 +3,10 @@ CXX_FLAGS := -Wall -Wextra -std=c++17 -ggdb
 
 BIN		:= bin
 SRC		:= src
-INCLUDE	:= include
-LIB		:= lib
+INCLUDE	:= $FFTW_INCLUDE
+LIB		:= $FFTW_LIB
 
-LIBRARIES	:=
+LIBRARIES	:= -lfftw3
 EXECUTABLE	:= main
 
 

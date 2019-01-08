@@ -19,7 +19,7 @@
             },
             "command": "make",
             "args": [
-                "run"
+                "run",
             ]
         }
     ]
