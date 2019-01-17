@@ -1,5 +1,5 @@
 #include <vector>
-#include <math.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <cmath>
@@ -9,8 +9,12 @@
 #include <iostream>
 #include <fftw3.h>
 
-#define pi atan(1)
+#define pi atan(1)*4
 std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
+
+void reads(string s, std::vector<std::vector<double>> &v){
+
+}
 
 void prints(std::vector<std::vector<double>> f3d)
 {
@@ -62,7 +66,7 @@ std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
 
 //Phase angle
 std::complex<double> angle(std::complex<double> a){
-    return atan2(a.real(), a.imag());
+    return atan2(a.imag(), a.real());
 }
 
 std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std::vector<std::complex<double>>> a)
@@ -110,11 +114,11 @@ void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std
         }
     printf("Done.\n");
 
-    printf("     -- Performint FFT...");
+    printf("     -- Performing FFT...");
     fftw_execute(p);
     printf("Done.\n");
 
-    printf("     -- Retrieving data...");
+    printf("     -- Retrieving data...\n");
     i = 0;
     for (int x = 0; x < size; x++){
         for (int z = 0; z < size2; z++)
@@ -122,6 +126,54 @@ void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std
             output[x][z] = std::complex<double>(out[i][0], out[i][1]);
             i++;
         }
+    }
+    fftw_destroy_plan(p);
+}
+
+void ifft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std::vector<std::complex<double>>> &output){
+    fftw_complex *in, *out;
+    fftw_plan p;
+
+    int size = input.size(), size2 = input[0].size();
+    
+    in  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
+    out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
+    p   = fftw_plan_dft_2d(size, size2, in, out, FFTW_BACKWARD, FFTW_PATIENT);
+
+    int i = 0;
+    for (int x = 0; x < size; x++)
+        for (int z = 0; z < size2; z++)
+        {
+            in[i][0] = std::real(input[x][z]);
+            in[i][1] = std::imag(input[x][z]);
+            i++;
+        }
+    printf("Done.\n");
+
+    printf("     -- Performint FFT...");
+    fftw_execute(p);
+    printf("Done.\n");
+
+    printf("     -- Retrieving data...\n");
+    i = 0;
+    for (int x = 0; x < size; x++){
+        for (int z = 0; z < size2; z++)
+        {
+            output[x][z] = std::complex<double>(out[i][0], out[i][1]);
+            i++;
+        }
+    }
+}
+
+
+double nfac(double N){
+    // NFAC - calculate N-factorial
+    //
+    //  Maurice A. Tivey 30-Oct-90
+
+    double nsum=1;
+    for (int i=1; i<N+1;i++){
+        nsum=nsum*i;
     }
 }
 
@@ -172,8 +224,10 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     k=fftshift(k);
 
 //
-    (wshort==0) ? wshort=dx*2: wshort=dy*2;
-    (wlong==0) ? wlong=nnx*dx: wlong=nny*dy; 
+    if(wshort==0)
+        wshort = (dx*2 > dy*2) ? dx*2: dy*2;
+    if(wlong==0)
+        wlong = (nnx*dx < nny*dy) ? nnx*dx: nny*dy; 
 
     double klo=twopi/wlong;
     double khi=twopi/wshort;
@@ -701,7 +755,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         std::vector<std::complex<double>> temp2;
         for(int j = 0; j<X[i].size();j++){
             temp1.push_back(sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[i][j], X[i][j]) + rb1));
-            temp2.push_back(sin(ra2) + i * cos(ra2) * sin(atan2(Y[i][j], X[i][j]) + rb2));
+            temp2.push_back(sin(ra2) + i_math * cos(ra2) * sin(atan2(Y[i][j], X[i][j]) + rb2));
         }
         ob.push_back(temp1);
         om.push_back(temp2);
@@ -712,6 +766,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         for(int j = 0; j<X[i].size();j++){
             temp.push_back(ob[i][j]*om[i][j]);
         }
+        o.push_back(temp);
     }
     
     o = fftshift_complex(o);
@@ -746,7 +801,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     for (int i = 1; i<h.size(); i++){
         double temp = *std::min_element(h[i].begin(), h[i].end());
         if(temp<hmax)
-            hmax = temp;
+            hmin = temp;
     }
     double conv=1;
     printf(" %10.3f %10.3f = MIN, MAX OBSERVED BATHY\n",hmin,hmax);
@@ -766,8 +821,8 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     // bathy zero placed halfway between extremes
     // this is optimum for summation but not for iteration
     // which needs zero at highest point of bathy
-    for(auto i: h){
-        for(auto j: i){
+    for(auto &i: h){
+        for(auto &j: i){
             j = j - shift + hwiggl;
         }
     }
@@ -802,101 +857,160 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     // take fft of observed magnetic field and initial m3d
     std::cout<<"Attempting fft"<<std::endl;
     std::vector<std::vector<std::complex<double>>> m3d(ny, std::vector<std::complex<double>>(nx,0)); // make an initial guess of 0 for m3d
-
-    std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx,0));
-    fft2(f3d, F);
-    for(auto a: F){
+    std::vector<std::vector<std::complex<double>>> f3d_2;
+    for(auto a: f3d){
+        std::vector<std::complex<double>> temp;
         for(auto b: a){
-            std::cout<<b<<" ";
+                temp.push_back(b);
         }
-        std::cout<<std::endl;
+        f3d_2.push_back(temp);
     }
+    std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx,0));
+    fft2(f3d_2, F);
+    
     // std::vector<std::vector<double>> sum1=fft2(m3d);
     // std::vector<std::vector<double>> F= (fft2(f3d));
 
     int intsum=0;
-    std::vector<std::vector<double>> mlast(ny, std::vector<std::complex<double>>(nx,0));
-    std::vector<std::vector<double>> lastm3d(ny, std::vector<std::complex<double>>(nx,0));
-    std::vector<std::vector<double>> B;
+    std::vector<std::vector<std::complex<double>>> mlast(ny, std::vector<std::complex<double>>(nx,0));
+    std::vector<std::vector<std::complex<double>>> lastm3d(ny, std::vector<std::complex<double>>(nx,0));
+    std::vector<std::vector<std::complex<double>>> B;
+    
     for(int i =0; i< F.size(); i++){
-        std::vector<double> temp;
+        std::vector<std::complex<double>> temp;
         for(int j = 0; j< F[i].size(); j++){
-            temp.push_back((F[i][j]*dexpz)/(math_constant*alap*amp*phase));
+            temp.push_back((F[i][j]*dexpz[i][j])/(math_constant*alap[i][j]*amp[i][j]*phase[i][j]));
+
         }
         B.push_back(temp);
     }
-
+ 
     B[0][0]=0;
     //
     printf(" CONVERGENCE :\n");
     printf(" ITER  MAX_PERTURB  #_TERMS  AVG ERR  \n");
-    for (int iter = 0; iter<nitrs+1; iter++){
+    int nkount;
+    for (int iter = 0; iter<nitrs; iter++){
         // summation loop
-        sum=zeros(ny,nx);
-        for (int nkount = 1;nkount <nterms){
+        std::vector<std::vector<std::complex<double>>> sum(ny, std::vector<std::complex<double>>(nx,0));
+        for (nkount = 1;nkount <nterms; nkount++){
             int n=nkount-1;
-        //    n=nkount;
-            std::vector<std::vector<std::complex<double>>> MH;
+            //    n=nkount;
+            std::vector<std::vector<std::complex<double>>> MH(m3d.size(), std::vector<std::complex<double>>(m3d[0].size(), 0));
             std::vector<std::vector<std::complex<double>>> m3d2;
             for(int i = 0; i<m3d.size(); i++){
                 std::vector<std::complex<double>> temp;
                 for(int j = 0; j < m3d[i].size(); j++){
-                    temp.push_back(m3d[i][j]*pow(h[i][j],n);
+                    temp.push_back(m3d[i][j]*pow(h[i][j],n));
                 }
                 m3d2.push_back(temp);
             }
             fft2(m3d2, MH);
-            dsum=dexpw.*((k.^n)./nfac(n)).*MH;
-            sum=dsum+sum;
-            errmax=max(max( abs(real(sum)+imag(sum)) ));
+            for(int i = 0; i<sum.size(); i++){
+                for(int j=0; j<sum[i].size(); j++){
+                    sum[i][j] = dexpw[i][j]*(pow(k[i][j],n)/nfac(n))*MH[i][j] + sum[i][j];
+                }
+            }
+            double errmax = sum[0][0].real() + sum[0][0].imag();
+            for(auto a: sum){
+                for(auto b: a){
+                    double temp = abs(b.real()+b.imag());
+                    if(temp > errmax) errmax = temp;
+                }
+            }
         }
         // transform to get new solution
-        M= (B-(sum))+mlast;
+        std::vector<std::vector<std::complex<double>>> M;
+        for(int i = 0; i < B.size(); i++){
+            std::vector<std::complex<double>> temp;
+            for(int j = 0; j< B[i].size(); j++){
+                temp.push_back((B[i][j]-(sum[i][j]))+mlast[i][j]);
+            }
+            M.push_back(temp);
+        }
         // filter before transforming to ensure no blow ups
-        M(1,1)=0;
-        mlast=M.*wts;
-        m3d=ifft2(mlast);
+        M[0][0]=0;
+        for(int i = 0; i < B.size(); i++){
+            for(int j = 0; j< B[i].size(); j++){
+                mlast[i][j]=M[i][j]*wts[i][j];
+            }
+        }
+        ifft2(mlast, m3d);
         // do convergence test
-        errmax=0;
-        s1=zeros(ny,nx);
-        s2=zeros(ny,nx);
-        dif=abs(lastm3d-m3d);
-        s2=s2+dif.*dif;
-        if errmax-max(max(dif)) < 0
-            errmax=max(max(dif));
-        end
+        double errmax=0;
+        std::vector<std::vector<std::complex<double>>> s1(ny, std::vector<std::complex<double>>(nx,0));
+        std::vector<std::vector<std::complex<double>>> s2(ny, std::vector<std::complex<double>>(nx,0));
+        std::vector<std::vector<std::complex<double>>> dif;
+        for(int i = 0; i < B.size(); i++){
+            std::vector<std::complex<double>> temp;
+            for(int j = 0; j< B[i].size(); j++){
+                temp.push_back(abs(lastm3d[i][j]-m3d[i][j]));
+            }
+            dif.push_back(temp);
+        }
+        for(int i = 0; i < B.size(); i++){
+            std::vector<std::complex<double>> temp;
+            for(int j = 0; j< B[i].size(); j++){
+                s2[i][j]=s2[i][j]+dif[i][j]*dif[i][j]; //TODO: MAY NEED PARENS AROUND s2 + dif
+            }
+        }
+        double difmax = dif[0][0].imag() + dif[0][0].real();
+        double difsum = 0;
+        for(auto a: dif){
+            for(auto b: a){
+                double temp = abs(b.real()+b.imag());
+                difsum+=temp;
+                if(temp > difmax) difmax = temp;
+            }
+        }
+        if (errmax-difmax < 0) errmax=difmax;
+        
         lastm3d=m3d;
         
-        avg=mean(mean(dif));
+        std::complex<double> avg=difsum/(dif.size()*dif[0].size());
         //  rms=sqrt(s2/(nx*ny) - avg^2);
-        if iter==1 
+        double first1;
+        double erpast;
+        if (iter==0){ 
             first1=errmax+1e-10; 
             erpast=errmax;
-        end
-        if errmax > erpast
-        flag=1;  // set the flag to show diverging solution
-        //break
-        end
+        }
+        if (errmax > erpast){
+            flag=1;  // set the flag to show diverging solution
+            //break
+        }
         erpast=errmax;
         // test for errmax less than tolerance
-        if errmax < tolmag
-        flag=0;
-        //break
-        end
-        fprintf('%3.0f, %10.4e, %6.0f ',iter,errmax,nkount);
-        fprintf(' %10.4e\n',avg);
-    end  // end of iteration loop
+        if (errmax < tolmag){
+            flag=0;
+            //break
+        }
+        printf("%3.0f, %10.4e, %6.0f ",iter,errmax,nkount);
+        printf(" %10.4e\n",avg);
+    }  // end of iteration loop
 
-    if flag == 1 
-    disp(' I would be quitting now error < tolerance ');
-    else
-    fprintf(' RESTORE ORIGINAL ZERO LEVEL\n');
-    fprintf(' SHIFT ZERO LEVEL OF BATHY BY %8.3f\n',shift);
-    h=h+shift-hwiggl;
-    end
+    if (flag == 1){ 
+        printf(" I would be quitting now error < tolerance ");
+    }
+    else{
+        printf(" RESTORE ORIGINAL ZERO LEVEL\n");
+        printf(" SHIFT ZERO LEVEL OF BATHY BY %8.3f\n",shift);
+        for(auto &a: h){
+            for(auto &b: a){
+                b = b+shift-hwiggl;
+            }
+        }
+    }
     //
-    m3d=real(m3d);
-    return a;
+    std::vector<std::vector<double>> returns;
+    for(auto a: m3d){
+        std::vector<double> temp;
+        for(auto b: a){
+            temp.push_back(b.real());
+        }
+        returns.push_back(temp);
+    }
+    return returns;
 }
 
 int main()
@@ -937,7 +1051,7 @@ int main()
     float sdip = 1;
     prints(f3d);
     prints(h);
-    inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip);
+    prints(inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip));
     
     return 0;
 }
