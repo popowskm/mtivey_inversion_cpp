@@ -1,19 +1,58 @@
+#include <iomanip>
 #include <vector>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <fstream>
 #include <cmath>
+#include <sstream>
 #include <complex>
 #include <numeric>
 #include <algorithm>
 #include <iostream>
 #include <fftw3.h>
 
-#define pi atan(1)*4
+#define pi 3.141592653589793
 std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
 
-void reads(string s, std::vector<std::vector<double>> &v){
+double magnitude(std::complex<double> a){
+    return (sqrt(pow(a.imag(),2) + pow(a.real(),2)));
+}
 
+void reads(std::string filename, std::vector<std::vector<double>> &v){
+    std::ifstream file(filename);
+    int l = 0;
+
+    while (file) {
+        l++;
+        std::string s;
+        if (!getline(file, s)) break;
+        if (s[0] != '#') {
+            std::istringstream ss(s);
+            std::vector<double> record;
+ 
+            while (ss) {
+                std::string line;
+                if (!getline(ss, line, ','))
+                    break;
+                try {
+                    record.push_back(stod(line));
+                }
+                catch (const std::invalid_argument e) {
+                    std::cout << "NaN found in file " << filename << " line " << l
+                         << std::endl;
+                    e.what();
+                }
+            }
+ 
+            v.push_back(record);
+        }
+    }
+ 
+    if (!file.eof()) {
+        std::cerr << "Could not read file " << filename << "\n";
+    }
+ 
+    file.close();
 }
 
 void prints(std::vector<std::vector<double>> f3d)
@@ -28,15 +67,6 @@ void prints(std::vector<std::vector<double>> f3d)
     }
 }
 
-void prints1(std::vector<double> f3d)
-{
-    for (int i = 0; i < f3d.size(); i++)
-    {
-        std::cout << f3d[i] << " ";
-    }
-    std::cout << "\n";
-}
-
 //MATLAB FUNCTION REPLICATION
 //Rotates halfway in x and y
 std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
@@ -44,9 +74,9 @@ std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
     std::vector<std::vector<double>>::const_iterator first = a.begin() + ceil(a.size() / 2);
     std::vector<std::vector<double>>::const_iterator last = a.end();
     std::vector<std::vector<double>> temp(first, last);
-    for (int i = 0; i < ceil(a.size() / 2); i++)
+    for (auto ptr = a.begin(); ptr < first; ptr++)
     {
-        temp.push_back(a[i]);
+        temp.push_back(*ptr);
     }
 
     for (std::vector<double> &j : temp)
@@ -54,9 +84,9 @@ std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
         std::vector<double>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
         std::vector<double>::const_iterator last2 = j.end();
         std::vector<double> temp2(first2, last2);
-        for (int i = 0; i < ceil(a.size() / 2); i++)
+        for (auto ptr = j.begin(); ptr < first2; ptr++)
         {
-            temp2.push_back(j[i]);
+            temp2.push_back(*ptr);
         }
         j = temp2;
     }
@@ -74,9 +104,9 @@ std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std:
     std::vector<std::vector<std::complex<double>>>::const_iterator first = a.begin() + ceil(a.size() / 2);
     std::vector<std::vector<std::complex<double>>>::const_iterator last = a.end();
     std::vector<std::vector<std::complex<double>>> temp(first, last);
-    for (int i = 0; i < ceil(a.size() / 2); i++)
+    for (auto ptr = a.begin(); ptr < first; ptr++)
     {
-        temp.push_back(a[i]);
+        temp.push_back(*ptr);
     }
 
     for (std::vector<std::complex<double>> &j : temp)
@@ -84,9 +114,9 @@ std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std:
         std::vector<std::complex<double>>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
         std::vector<std::complex<double>>::const_iterator last2 = j.end();
         std::vector<std::complex<double>> temp2(first2, last2);
-        for (int i = 0; i < ceil(a.size() / 2); i++)
+        for (auto ptr = j.begin(); ptr < first2; ptr++)
         {
-            temp2.push_back(j[i]);
+            temp2.push_back(*ptr);
         }
         j = temp2;
     }
@@ -102,17 +132,18 @@ void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std
     
     in  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
     out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * size2);
-    p   = fftw_plan_dft_2d(size, size2, in, out, FFTW_FORWARD, FFTW_PATIENT);
+    p   = fftw_plan_dft_2d(size, size2, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
     int i = 0;
     for (int x = 0; x < size; x++)
+    {
         for (int z = 0; z < size2; z++)
         {
             in[i][0] = std::real(input[x][z]);
             in[i][1] = std::imag(input[x][z]);
             i++;
         }
-    printf("Done.\n");
+    }
 
     printf("     -- Performing FFT...");
     fftw_execute(p);
@@ -120,7 +151,8 @@ void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std
 
     printf("     -- Retrieving data...\n");
     i = 0;
-    for (int x = 0; x < size; x++){
+    for (int x = 0; x < size; x++)
+    {
         for (int z = 0; z < size2; z++)
         {
             output[x][z] = std::complex<double>(out[i][0], out[i][1]);
@@ -128,6 +160,8 @@ void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std
         }
     }
     fftw_destroy_plan(p);
+    fftw_free(in);
+    fftw_free(out);
 }
 
 void ifft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std::vector<std::complex<double>>> &output){
@@ -197,11 +231,11 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     double dkx=2*pi/(nnx*dx);
     double dky=2*pi/(nny*dy);
     std::vector<double> kx;
-    for(int i = -nx2; i < nx2;i++){
+    for(int i = -nx2; i < nx2; i++){
         kx.push_back(i*dkx);
     }
     std::vector<double> ky;
-    for(int i = -ny2; i<ny2;i++){
+    for(int i = -ny2; i < ny2; i++){
         ky.push_back(i*dky);
     }
     std::vector<std::vector<double>> X(ky.size(), ky);
@@ -217,7 +251,7 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
         std::vector<double> temp;
         for (int j = 0; j < X[0].size(); j++)
         {
-            temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
+            temp.push_back(sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2)));
         }
         k.push_back(temp);
     } // wavenumber array
@@ -445,8 +479,12 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     // TODO: Determine the best way to supply the data to the program -- CSV?
 
     // WARNING: TEMPORARILY HARDCODED VARIABLES
-    std::vector<int> agh({-31543, -2298, 5922, -677, 2905, -1061, 924, 1121, 1022, -1469, -330, 1256, 3, 572, 523, 876, 628, 195, 660, -69, -361, -210, 134, -75, -184, 328, -210, 264, 53, 5, -33, -86, -124, -16, 3, 63, 61, -9, -11, 83, -217, 2, -58, -35, 59, 36, -90, -69, 70, -55, -45, 0, -13, 34, -10, -41, -1, -21, 28, 18, -12, 6, -22, 11, 8, 8, -4, -14, -9, 7, 1, -13, 2, 5, -9, 16, 5, -5, 8, -18, 8, 10, -20, 1, 14, -11, 5, 12, -3, 1, -2, -2, 8, 2, 10, -1, -2, -1, 2, -3, -4, 2, 2, 1, -5, 2, -2, 6, 6, -4, 4, 0, 0, -2, 2, 4, 2, 0, 0, -6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-    std::vector<double> dgh({16.6000000000000, 12.8000000000000, -20, -13.8000000000000, 2.20000000000000, -17.4000000000000, -1, -8, 4.20000000000000, -5.60000000000000, 4.40000000000000, 0.200000000000000, 1.80000000000000, -8.60000000000000, -15, 0.200000000000000, 0, 3, -7, 0.800000000000000, 1, 2.60000000000000, -3.80000000000000, -1.40000000000000, 0, -0.200000000000000, 0, -2, 2.20000000000000, -1.80000000000000, 2, -0.200000000000000, 2.80000000000000, 3.80000000000000, 2, 1.40000000000000, 0.400000000000000, -0.200000000000000, 1.80000000000000, -2, 1.60000000000000, -0.400000000000000, -0.800000000000000, -1.20000000000000, 0.200000000000000, 0, 0.600000000000000, 2.40000000000000, 0, -1.60000000000000, 2.20000000000000, -0.200000000000000, 0.200000000000000, 0.400000000000000, 0.800000000000000, 1.20000000000000, 0.600000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.400000000000000, -0.400000000000000, 0.400000000000000, 0.200000000000000, 0.200000000000000, -1, -0.400000000000000, 0.200000000000000, 0.400000000000000, -0.400000000000000, -0.200000000000000, 1.20000000000000, 0.600000000000000, 0.400000000000000, -0.200000000000000, -1.40000000000000, 0, -0.200000000000000, 1.20000000000000, 0, 0, 0, 0.400000000000000, 0, 0.400000000000000, 0.200000000000000, -0.200000000000000, 0.200000000000000, -0.800000000000000, -0.200000000000000, 0.200000000000000, -0.200000000000000, 0.600000000000000, -0.600000000000000, -0.600000000000000, -0.200000000000000, -0.400000000000000, 0.200000000000000, 0, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0.200000000000000, 0.200000000000000, 0.200000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.200000000000000, 0.200000000000000, 0, 0.400000000000000, -0.400000000000000, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    std::vector<std::vector<double>> agh_prime;
+    reads("agh",agh_prime);
+    std::vector<std::vector<double>> dgh_prime;
+    reads("dgh",dgh_prime);
+    std::vector<double> agh = agh_prime[0];
+    std::vector<double> dgh = dgh_prime[0];
     int base = 1990;
     int i = 199;
     double t = 0;
@@ -605,7 +643,7 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 // MAT May  5 1995
 // MAT Mar 1996 (new igrf)
 // calls <syn3d,magfd,nskew,bpass3d>
-std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, float wl, float ws, float rlat, float rlon, int yr, float zobs, float thick, float slin, float dx, float dy, float sdec, float sdip)
+std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, double thick, double slin, double dx, double dy, double sdec, double sdip)
 {
     //error
     std::vector<std::vector<double>> a;
@@ -616,8 +654,8 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     // changeable parameters
     int nterms = 20;
     int nitrs = 20;
-    float tol = 0.0001;
-    float tolmag = 0.0001;
+    double tol = 0.0001;
+    double tolmag = 0.0001;
     int flag = 0;
     int xmin = 0;
 
@@ -650,8 +688,21 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
 
     // remove mean from input field
     // double mnf3d=std::accumulate(f3d.begin(), f3d.end(), 0.0)/f3d.size();
+
+    // writes f3d to f3d2 for comparison
+    // std::ofstream file("f3d2");
+    // for(int i = 0; i < f3d.size(); i++){
+    //     auto temps = f3d[i].size();
+    //     for(int j = 0; j < f3d[i].size()-1; j++){
+    //         file << std::setprecision(16) << f3d[i][j] << ',';
+    //     }
+    //     file << std::setprecision(16) << f3d[i][63] << std::endl;
+    // }
+    // file.close();
+    // auto tempy = f3d.size();
+
     double total = 0;
-    std::for_each(f3d.begin(), f3d.end(), [&total](std::vector<double> v) { std::for_each(v.begin(), v.end(), [&total](double &d) { total += d; }); });
+    std::for_each(f3d.rbegin(), f3d.rend(), [&total](std::vector<double> v) { std::for_each(v.rbegin(), v.rend(), [&total](double &d) { total += d; }); });
 
     const double mnf3d = total / (f3d.size() * f3d[0].size());
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
@@ -686,7 +737,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         else
         {
             skew_array = nskew(yr, rlat, rlon, zobs, slin, 0, 0, false);
-            sdip = atan2(2. * sin(rlat * rad), cos(rlat * rad)) / rad;
+            sdip = atan2(2.0 * sin(rlat * rad), cos(rlat * rad)) / rad;
             sdec = 0;
         }
         theta = skew_array[0];
@@ -750,6 +801,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
 
     std::vector<std::vector<std::complex<double>>> ob;
     std::vector<std::vector<std::complex<double>>> om;
+    std::complex<double> tempy = sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[62][0], X[62][0])+ rb1);
     for(int i = 0; i<X.size();i++){
         std::vector<std::complex<double>> temp1;
         std::vector<std::complex<double>> temp2;
@@ -792,15 +844,15 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     double math_constant = 2 * pi * mu;
     //shift zero level of bathy
     double hmax = *std::max_element(h[0].begin(), h[0].end());
-    for (int i = 1; i<h.size(); i++){
-        double temp = *std::max_element(h[i].begin(), h[i].end());
+    for (auto a: h){
+        double temp = *std::max_element(a.begin(), a.end());
         if(temp>hmax)
             hmax = temp;
     }
     double hmin=*std::min_element(h[0].begin(), h[0].end());
-    for (int i = 1; i<h.size(); i++){
-        double temp = *std::min_element(h[i].begin(), h[i].end());
-        if(temp<hmax)
+    for (auto a: h){
+        double temp = *std::min_element(a.begin(), a.end());
+        if(temp<hmin)
             hmin = temp;
     }
     double conv=1;
@@ -906,12 +958,21 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
                 m3d2.push_back(temp);
             }
             fft2(m3d2, MH);
+                std::ofstream file("m3d2");
+                for(int i = 0; i < m3d.size(); i++){
+                    auto temps = m3d[i].size();
+                    for(int j = 0; j < m3d[i].size()-1; j++){
+                        file << std::setprecision(16) << m3d[i][j] << ',';
+                    }
+                    file << std::setprecision(16) << m3d[i][63] << std::endl;
+                }
+                file.close();
             for(int i = 0; i<sum.size(); i++){
                 for(int j=0; j<sum[i].size(); j++){
                     sum[i][j] = dexpw[i][j]*(pow(k[i][j],n)/nfac(n))*MH[i][j] + sum[i][j];
                 }
             }
-            double errmax = sum[0][0].real() + sum[0][0].imag();
+            double errmax = abs(sum[0][0].real() + sum[0][0].imag());
             for(auto a: sum){
                 for(auto b: a){
                     double temp = abs(b.real()+b.imag());
@@ -936,6 +997,11 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
             }
         }
         ifft2(mlast, m3d);
+        for(auto &vec: m3d){
+            for(auto &val: vec){
+                val = val/(64.0*64.0);
+            }
+        }
         // do convergence test
         double errmax=0;
         std::vector<std::vector<std::complex<double>>> s1(ny, std::vector<std::complex<double>>(nx,0));
@@ -954,20 +1020,19 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
                 s2[i][j]=s2[i][j]+dif[i][j]*dif[i][j]; //TODO: MAY NEED PARENS AROUND s2 + dif
             }
         }
-        double difmax = dif[0][0].imag() + dif[0][0].real();
-        double difsum = 0;
+        std::complex<double> difmax = dif[0][0].imag() + dif[0][0].real();
+        std::complex<double> difsum = 0;
         for(auto a: dif){
             for(auto b: a){
-                double temp = abs(b.real()+b.imag());
-                difsum+=temp;
-                if(temp > difmax) difmax = temp;
+                difsum+=b;
+                if(magnitude(b) > magnitude(difmax)) difmax = b;
             }
         }
-        if (errmax-difmax < 0) errmax=difmax;
+        if (magnitude(errmax-difmax) < 0) errmax=magnitude(difmax);
         
         lastm3d=m3d;
         
-        std::complex<double> avg=difsum/(dif.size()*dif[0].size());
+        std::complex<double> avg=difsum/(dif.size()*dif[0].size()*1.0);
         //  rms=sqrt(s2/(nx*ny) - avg^2);
         double first1;
         double erpast;
@@ -1015,43 +1080,59 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
 
 int main()
 {
+    // std::vector<std::vector<double>> f3d;
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     std::vector<double> temp;
+    //     for (int j = 0; j < 10; j++)
+    //     {
+    //         temp.push_back(i + j);
+    //     }
+    //     f3d.push_back(temp);
+    // }
+    // std::vector<std::vector<double>> h;
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     std::vector<double> temp;
+    //     for (int j = 0; j < 10; j++)
+    //     {
+    //         temp.push_back(j);
+    //     }
+    //     h.push_back(temp);
+    // }
+    // float wl = 1;
+    // float ws = 1;
+    // float rlat = 10;
+    // float rlon = 1;
+    // int yr = 1990;
+    // float zobs = 1;
+    // float thick = 1;
+    // float slin = 1;
+    // float dx = 1;
+    // float dy = 1;
+
     std::vector<std::vector<double>> f3d;
-    for (int i = 0; i < 10; i++)
-    {
-        std::vector<double> temp;
-        for (int j = 0; j < 10; j++)
-        {
-            temp.push_back(i + j);
-        }
-        f3d.push_back(temp);
-    }
+    reads("f3d", f3d);
     std::vector<std::vector<double>> h;
-    for (int i = 0; i < 10; i++)
-    {
-        std::vector<double> temp;
-        for (int j = 0; j < 10; j++)
-        {
-            temp.push_back(j);
-        }
-        h.push_back(temp);
-    }
-    float wl = 1;
-    float ws = 1;
-    float rlat = 10;
-    float rlon = 1;
-    int yr = 1990;
-    float zobs = 1;
-    float thick = 1;
-    float slin = 1;
-    float dx = 1;
-    float dy = 1;
+    reads("h", h);
+    std::vector<std::vector<double>> other;
+    reads("other", other);
+
+    double wl = other[0][0];
+    double ws = other[0][1];
+    double rlat = other[0][2];
+    double rlon = other[0][3];
+    double yr = other[0][4];
+    double zobs = other[0][5];
+    double thick = other[0][6];
+    double slin = other[0][7];
+    double dx = other[0][8];
+    double dy = other[0][9];
+
 
     // Optional values, default assumes geocentric dipole hypothesis
-    float sdec = 1;
-    float sdip = 1;
-    prints(f3d);
-    prints(h);
+    double sdec = 0;
+    double sdip = 0;
     prints(inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip));
-    
     return 0;
 }
