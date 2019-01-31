@@ -327,22 +327,22 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
 }
 
 
-std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
+std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double azim, double sdec, double sdip, bool opts)
 {
     // NSKEW - Compute skewness parameter and amplitude factor
     //  following Schouten (1971)
     //  Computes GEOCENTRIC DIPOLE unless given
     //  declination and dip of magnetization
     // Usage:
-    //    [theta,ampfac]=nskew(yr,rlat,rlon,zobs,slin)
+    //    [theta,ampfac]=nskew(yr,rlat,rlon,zobs,azim)
     // or
-    //    [theta,ampfac]=nskew(yr,rlat,rlon,zobs,slin,sdec,sdip)
+    //    [theta,ampfac]=nskew(yr,rlat,rlon,zobs,azim,sdec,sdip)
     //
     //  Input variables:
     //   yr : decimal year of survey
     //   rlat,rlon : regional latitude, longitude in decimal degrees
     //   zobs : level of observation in km above sealevel
-    //   slin : strike of lineations normal to profile (+cw degrees from north)
+    //   azim : strike of lineations normal to profile (+cw degrees from north)
     //   sdec,sdip : magnetization declination,inclination
     // Output variables
     //   theta : phase angle
@@ -395,9 +395,9 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     }
     // compute phase and amplitude factors
     double ra1 = incl1 * rad;
-    double rb1 = (decl1 - slin) * rad;
+    double rb1 = (decl1 - azim) * rad;
     double ra2 = sdip * rad;
-    double rb2 = (sdec - slin) * rad;
+    double rb2 = (sdec - azim) * rad;
     // compute phase and amplitude factors
     double inclm = atan2(tan(ra2), sin(rb2));
     double inclf = atan2(tan(ra1), sin(rb1));
@@ -417,11 +417,11 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     // compute unit vectors for a check
     std::vector<double> hatm;
     std::vector<double> hatb;
-    hatm.push_back(cos(sdip * rad) * sin((sdec - slin) * rad));
-    hatm.push_back(cos(sdip * rad) * cos((sdec - slin) * rad));
+    hatm.push_back(cos(sdip * rad) * sin((sdec - azim) * rad));
+    hatm.push_back(cos(sdip * rad) * cos((sdec - azim) * rad));
     hatm.push_back(-sin(sdip * rad));
-    hatb.push_back(cos(incl1 * rad) * sin((decl1 - slin) * rad));
-    hatb.push_back(cos(incl1 * rad) * cos((decl1 - slin) * rad));
+    hatb.push_back(cos(incl1 * rad) * sin((decl1 - azim) * rad));
+    hatb.push_back(cos(incl1 * rad) * cos((decl1 - azim) * rad));
     hatb.push_back(-sin(incl1 * rad));
     //
     if (yr > 0)
@@ -631,9 +631,9 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 // Use the Parker & Huestis [1974] Fourier inversion approach.
 //
 // Usage: m3d=inv3d(f3d,h,wl,ws,rlat,
-//                      rlon,yr,zobs,thick,slin,dx,dy,sdec,sdip);
+//                      rlon,yr,zobs,thick,azim,dx,dy,sdec,sdip);
 //   or for geocentric dipole
-//     m3d=inv3d(f3d,h,wl,ws,rlat,rlon,yr,zobs,thick,slin,dx,dy);
+//     m3d=inv3d(f3d,h,wl,ws,rlat,rlon,yr,zobs,thick,azim,dx,dy);
 //
 // Input arrays:
 //    f3d 	magnetic field (nT)
@@ -643,10 +643,10 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 //    rlat 	latitude of survey area dec. deg.
 //    rlon 	longitude of survey area dec. deg.
 //    yr 	year of survey (dec. year)
-//    slin 	azimuth of lineations (deg)
+//    azim 	azimuth of lineations (deg)
 //    zobs 	observation level (+km up)
 //    thick 	thickness of source layer (km)
-//    slin	azimuth of grid (degrees) hard wired to 0
+//    azim	azimuth of grid (degrees) hard wired to 0
 //    dx 	x grid spacing  (km)
 //    dy 	y grid spacing  (km)
 //    sdec	declination of magnetization (optional)
@@ -660,7 +660,7 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 // MAT May  5 1995
 // MAT Mar 1996 (new igrf)
 // calls <syn3d,magfd,nskew,bpass3d>
-std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, double thick, double slin, double dx, double dy, double sdec, double sdip)
+std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, double thick, double azim, double dx, double dy, double sdec, double sdip)
 {
     //error
     std::vector<std::vector<double>> a;
@@ -677,14 +677,13 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     int xmin = 0;
 
     printf("       3D MAGNETIC INVERSE MODEL\n");
-    printf("                  INV3D\n");
-    printf("        Constant thickness layer\n");
-    printf("Version : 2/24/2015\n");
+    printf("                  INV3DA\n");
+    printf("        Variable thickness layer\n");
 
     printf(" Zobs= %12.5f\n Rlat= %12.5f Rlon= %12.5f\n", zobs, rlat, rlon);
     printf(" Yr= %12.5f\n", yr);
     printf(" Thick= %12.5f\n", thick);
-    printf(" slin = %12.6f\n", slin);
+    printf(" azim = %12.6f\n", azim);
     printf(" Nterms,Tol %6.0f %10.5f \n", nterms, tol);
 
     if (h.empty() || f3d.empty())
@@ -747,37 +746,27 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     double theta;
     double ampfac;
     std::vector<double> skew_array;
-    if (rlat == 90)
-    { // rtp anomaly
-        incl1 = 90;
-        decl1 = 0;
-        sdip = 90;
-        sdec = 0;
-        printf("Assume an RTP anomaly\n");
+
+    if (abs(sdec) > 0. || abs(sdip) > 0.)
+    {
+        skew_array = nskew(yr, rlat, rlon, zobs, azim, sdec, sdip, true); //skew_array = [theta, ampfac]
     }
     else
     {
-        if (abs(sdec) > 0. || abs(sdip) > 0.)
-        {
-            skew_array = nskew(yr, rlat, rlon, zobs, slin, sdec, sdip, true); //skew_array = [theta, ampfac]
-        }
-        else
-        {
-            skew_array = nskew(yr, rlat, rlon, zobs, slin, 0, 0, false);
-            sdip = atan2(2.0 * sin(rlat * rad), cos(rlat * rad)) / rad;
-            sdec = 0;
-        }
-        theta = skew_array[0];
-        ampfac = skew_array[1];
+        skew_array = nskew(yr, rlat, rlon, zobs, azim, 0, 0, false);
+        sdip = atan2(2.0 * sin(rlat * rad), cos(rlat * rad)) / rad;
+        sdec = 0;
     }
+    theta = skew_array[0];
+    ampfac = skew_array[1];
 
-    slin = 0; // slin is forced to zero
+    azim = 0; // azim is forced to zero
     double ra1 = incl1 * rad;
-    double rb1 = (decl1 - slin) * rad;
-    // rb1=(slin-decl1)*rad;
+    double rb1 = (decl1 - azim) * rad;
+    // rb1=(azim-decl1)*rad;
     double ra2 = sdip * rad;
-    double rb2 = (sdec - slin) * rad;
-    // rb2=(slin-sdec)*rad;
+    double rb2 = (sdec - azim) * rad;
+    // rb2=(azim-sdec)*rad;
 
     // make wave number array
     // ni=1/nx;
@@ -869,6 +858,15 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     phase = fftshift_complex(phase);
     // phase angle
     double math_constant = 2 * pi * mu;
+    // calculate base layer 
+    std::vector<std::vector<std::complex<double>>> g;
+    for(auto vec: h){
+        std::vector<std::complex<double>> temp;
+        for(auto val: vec){
+            temp.push_back(-(abs(val)+thick));
+        }
+        g.push_back(temp);
+    }
     //shift zero level of bathy
     double hmax = *std::max_element(h[0].begin(), h[0].end());
     for (auto a: h){
@@ -1129,7 +1127,7 @@ int main()
     // int yr = 1990;
     // float zobs = 1;
     // float thick = 1;
-    // float slin = 1;
+    // float azim = 1;
     // float dx = 1;
     // float dy = 1;
 
@@ -1147,7 +1145,7 @@ int main()
     double yr = other[0][4];
     double zobs = other[0][5];
     double thick = other[0][6];
-    double slin = other[0][7];
+    double azim = other[0][7];
     double dx = other[0][8];
     double dy = other[0][9];
 
@@ -1155,6 +1153,6 @@ int main()
     // Optional values, default assumes geocentric dipole hypothesis
     double sdec = 0;
     double sdip = 0;
-    prints(inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, slin, dx, dy, sdec, sdip));
+    prints(inv3d(f3d, h, wl, ws, rlat, rlon, yr, zobs, thick, azim, dx, dy, sdec, sdip));
     return 0;
 }
