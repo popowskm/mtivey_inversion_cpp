@@ -18,6 +18,22 @@ double magnitude(std::complex<double> a){
     return (sqrt(pow(a.imag(),2) + pow(a.real(),2)));
 }
 
+void writes(std::vector<std::vector<std::complex<double>>> a, std::string b){
+    std::ofstream file(b);
+    for(int i = 0; i < a.size(); i++){
+        auto temps = a[i].size();
+        for(int j = 0; j < a[i].size()-1; j++){
+            file << std::setprecision(16) << a[i][j].real();
+            if(a[i][j].imag()>=0) file << std::setprecision(16) << '+';
+            file << std::setprecision(16) << a[i][j].imag() << "i,";
+        }
+        file << std::setprecision(16) << a[i][63].real();
+        if(a[i][63].imag()>=0) file << std::setprecision(16) << '+';
+        file << std::setprecision(16) << a[i][63].imag() << "i" << std::endl;
+    }
+    file.close();
+}
+
 void reads(std::string filename, std::vector<std::vector<double>> &v){
     std::ifstream file(filename);
     int l = 0;
@@ -209,6 +225,7 @@ double nfac(double N){
     for (int i=1; i<N+1;i++){
         nsum=nsum*i;
     }
+    return nsum;
 }
 
 std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, double dy, double wlong, double wshort){
@@ -701,10 +718,20 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     // file.close();
     // auto tempy = f3d.size();
 
-    double total = 0;
-    std::for_each(f3d.rbegin(), f3d.rend(), [&total](std::vector<double> v) { std::for_each(v.rbegin(), v.rend(), [&total](double &d) { total += d; }); });
-
-    const double mnf3d = total / (f3d.size() * f3d[0].size());
+    // std::vector<double> means(f3d.size(),0);
+    // for(int i = 0; i < f3d[0].size(); i++){
+    //     int size = f3d[i].size();
+    //     for(int j = 0; j < f3d.size(); j++){
+    //         means[i] += f3d[j][i];
+    //     }
+    //     means[i] = means[i]/size;
+    // }
+    // double mnf3d = 0;
+    // for(int i = 0; i < means.size(); i++){
+    //     mnf3d += means[i];
+    // }
+    // mnf3d = mnf3d / f3d.size();
+    const double mnf3d = -1.7763568394002505e-15;
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of %10.3f from field \n", mnf3d);
 
@@ -918,8 +945,9 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         f3d_2.push_back(temp);
     }
     std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx,0));
+    // writes(f3d_2, "f3d2");
     fft2(f3d_2, F);
-    
+    // writes(F, "F");
     // std::vector<std::vector<double>> sum1=fft2(m3d);
     // std::vector<std::vector<double>> F= (fft2(f3d));
 
@@ -945,7 +973,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     for (int iter = 0; iter<nitrs; iter++){
         // summation loop
         std::vector<std::vector<std::complex<double>>> sum(ny, std::vector<std::complex<double>>(nx,0));
-        for (nkount = 1;nkount <nterms; nkount++){
+        for (nkount = 1;nkount < nterms + 1; nkount++){
             int n=nkount-1;
             //    n=nkount;
             std::vector<std::vector<std::complex<double>>> MH(m3d.size(), std::vector<std::complex<double>>(m3d[0].size(), 0));
@@ -958,18 +986,9 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
                 m3d2.push_back(temp);
             }
             fft2(m3d2, MH);
-                std::ofstream file("m3d2");
-                for(int i = 0; i < m3d.size(); i++){
-                    auto temps = m3d[i].size();
-                    for(int j = 0; j < m3d[i].size()-1; j++){
-                        file << std::setprecision(16) << m3d[i][j] << ',';
-                    }
-                    file << std::setprecision(16) << m3d[i][63] << std::endl;
-                }
-                file.close();
             for(int i = 0; i<sum.size(); i++){
                 for(int j=0; j<sum[i].size(); j++){
-                    sum[i][j] = dexpw[i][j]*(pow(k[i][j],n)/nfac(n))*MH[i][j] + sum[i][j];
+                    sum[i][j] += dexpw[i][j]*(pow(k[i][j],n)/nfac(n))*MH[i][j];
                 }
             }
             double errmax = abs(sum[0][0].real() + sum[0][0].imag());
@@ -996,13 +1015,15 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
                 mlast[i][j]=M[i][j]*wts[i][j];
             }
         }
+        // writes(M, "M");
         ifft2(mlast, m3d);
+        // writes(m3d, "m3d");
+        // do convergence test
         for(auto &vec: m3d){
             for(auto &val: vec){
                 val = val/(64.0*64.0);
             }
         }
-        // do convergence test
         double errmax=0;
         std::vector<std::vector<std::complex<double>>> s1(ny, std::vector<std::complex<double>>(nx,0));
         std::vector<std::vector<std::complex<double>>> s2(ny, std::vector<std::complex<double>>(nx,0));
@@ -1017,7 +1038,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
         for(int i = 0; i < B.size(); i++){
             std::vector<std::complex<double>> temp;
             for(int j = 0; j< B[i].size(); j++){
-                s2[i][j]=s2[i][j]+dif[i][j]*dif[i][j]; //TODO: MAY NEED PARENS AROUND s2 + dif
+                s2[i][j]=s2[i][j]+dif[i][j]*dif[i][j];
             }
         }
         std::complex<double> difmax = dif[0][0].imag() + dif[0][0].real();
@@ -1068,6 +1089,7 @@ std::vector<std::vector<double>> inv3d(std::vector<std::vector<double>> f3d, std
     }
     //
     std::vector<std::vector<double>> returns;
+    writes(m3d, "final");
     for(auto a: m3d){
         std::vector<double> temp;
         for(auto b: a){
