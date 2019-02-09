@@ -103,18 +103,6 @@ void reads(std::string filename, std::vector<std::vector<double>> &v){
     file.close();
 }
 
-void prints(std::vector<std::vector<double>> f3d)
-{
-    for (int i = 0; i < f3d.size(); i++)
-    {
-        for (int j = 0; j < f3d[i].size(); j++)
-        {
-            std::cout << f3d[i][j] << ' ';
-        }
-        std::cout << "\n";
-    }
-}
-
 //MATLAB FUNCTION REPLICATION
 //Rotates halfway in x and y
 std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
@@ -278,18 +266,18 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     for(int i = -ny2; i < ny2; i++){
         ky.push_back(i*dky);
     }
-    std::vector<std::vector<double>> X(ky.size(), ky);
+    std::vector<std::vector<double>> X(nny, ky);
     std::vector<std::vector<double>> Y;
     for (auto num : kx)
     {
-        std::vector<double> temp(kx.size(), num);
+        std::vector<double> temp(nnx, num);
         Y.push_back(temp);
     }
     std::vector<std::vector<double>> k;
-    for (int i = 0; i < X.size(); i++)
+    for (int i = 0; i < nny; i++)
     {
         std::vector<double> temp;
-        for (int j = 0; j < X[0].size(); j++)
+        for (int j = 0; j < nnx; j++)
         {
             temp.push_back(sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2)));
         }
@@ -328,7 +316,7 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     printf("   --  CUT TO NYQUIST X,Y= %8.3f  %8.3f\n",wnx,wny);
     double nnx2=nnx/2+1;
     double nny2=nny/2+1;
-    std::vector<std::vector<double>> wts(k.size(), std::vector<double>(k[0].size(), 0));  // initialise to zero
+    std::vector<std::vector<double>> wts(nny, std::vector<double>(nnx, 0));  // initialise to zero
     for (int i=0; i<nny;i++){
         for (int j=0; j<nnx;j++){
             if (k[i][j]>klo){ 
@@ -724,7 +712,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
     printf(" READ %6.0f x %6.0f matrix by columns \n", nx, ny);
     printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
-    
+
     const double mnf3d = -1.7763568394002505e-15;
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of %10.3f from field \n", mnf3d);
@@ -774,28 +762,28 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     double dkx = pi / (nx * dx);
     double dky = pi / (ny * dy);
 
-    std::vector<double> kx;
+    std::vector<double> kx(nx, 0);
     for (int i = nx2 * -1; i < nx2; i++)
     {
-        kx.push_back(i * dkx);
+        kx[i] = (i * dkx);
     }
-    std::vector<double> ky;
+    std::vector<double> ky(nx, 0);
     for (int i = ny2 * -1; i < ny2; i++)
     {
-        ky.push_back(i * dky);
+        ky[i] = (i * dky);
     }
-    std::vector<std::vector<double>> X(ky.size(), ky);
+    std::vector<std::vector<double>> X(nx, ky);
     std::vector<std::vector<double>> Y;
     for (auto num : kx)
     {
-        std::vector<double> temp(kx.size(), num);
+        std::vector<double> temp(nx, num);
         Y.push_back(temp);
     }
     std::vector<std::vector<double>> k;
-    for (int i = 0; i < X.size(); i++)
+    for (int i = 0; i < ny; i++)
     {
         std::vector<double> temp;
-        for (int j = 0; j < X[0].size(); j++)
+        for (int j = 0; j < nx; j++)
         {
             temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
         }
@@ -806,10 +794,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
 
     std::vector<std::vector<std::complex<double>>> ob;
     std::vector<std::vector<std::complex<double>>> om;
-    for(int i = 0; i<X.size();i++){
+    for(int i = 0; i<ny;i++){
         std::vector<std::complex<double>> temp1;
         std::vector<std::complex<double>> temp2;
-        for(int j = 0; j<X[i].size();j++){
+        for(int j = 0; j<nx;j++){
             temp1.push_back(sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[i][j], X[i][j]) + rb1));
             temp2.push_back(sin(ra2) + i_math * cos(ra2) * sin(atan2(Y[i][j], X[i][j]) + rb2));
         }
@@ -817,9 +805,9 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         om.push_back(temp2);
     }
     std::vector<std::vector<std::complex<double>>> o;
-    for(int i = 0; i<X.size();i++){
+    for(int i = 0; i<ny;i++){
         std::vector<std::complex<double>> temp;
-        for(int j = 0; j<X[i].size();j++){
+        for(int j = 0; j<nx;j++){
             temp.push_back(ob[i][j]*om[i][j]);
         }
         o.push_back(temp);
@@ -836,9 +824,9 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
     // amplitude factor
     std::vector<std::vector<std::complex<double>>> phase;
-    for(int i = 0; i<ob.size(); i++){
+    for(int i = 0; i < ny; i++){
         std::vector<std::complex<double>> temp;
-        for(int j = 0; j<ob[i].size(); j++){
+        for(int j = 0; j < nx ; j++){
             temp.push_back(exp(i_math * (angle(ob[i][j]) + angle(om[i][j]))));
         }
         phase.push_back(temp);
@@ -848,9 +836,9 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     double math_constant = 2 * pi * mu;
     // calculate base layer 
     std::vector<std::vector<std::complex<double>>> g;
-    for(int i = 0; i < h.size(); i++){
+    for(int i = 0; i < ny; i++){
         std::vector<std::complex<double>> temp;
-        for(int j = 0; j < h[0].size(); j++){
+        for(int j = 0; j < nx; j++){
             temp.push_back(-(abs(h[i][j])+thick[i][j]));
         }
         g.push_back(temp);
@@ -920,9 +908,9 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
     std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx,0));
     fft2(f3d_2, F);
-    std::vector<std::vector<std::complex<double>>> HG(h.size(), std::vector<std::complex<double>>(h[0].size(), 0));
-    for(int i = 0; i < h.size(); i++){
-        for(int j = 0; j < h[0].size(); j++){
+    std::vector<std::vector<std::complex<double>>> HG(ny, std::vector<std::complex<double>>(nx, 0));
+    for(int i = 0; i < ny; i++){
+        for(int j = 0; j < nx; j++){
             HG[i][j] = h[i][j] - g[i][j];
         }
     }
@@ -932,9 +920,9 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     std::vector<std::vector<std::complex<double>>> lastm3d(ny, std::vector<std::complex<double>>(nx,0));
     std::vector<std::vector<std::complex<double>>> B;
     
-    for(int i =0; i< F.size(); i++){
+    for(int i =0; i< ny; i++){
         std::vector<std::complex<double>> temp;
-        for(int j = 0; j< F[i].size(); j++){
+        for(int j = 0; j< nx; j++){
             temp.push_back((F[i][j]*dexpz[i][j])/(math_constant*amp[i][j]*phase[i][j]));
 
         }
@@ -955,18 +943,18 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         std::vector<std::vector<std::complex<double>>> sum(ny, std::vector<std::complex<double>>(nx,0));
         for (nkount = 2;nkount < nterms + 1; nkount++){
             int n=nkount;
-            std::vector<std::vector<std::complex<double>>> MH(m3d.size(), std::vector<std::complex<double>>(m3d[0].size(), 0));
+            std::vector<std::vector<std::complex<double>>> MH(ny, std::vector<std::complex<double>>(nx, 0));
             std::vector<std::vector<std::complex<double>>> m3d2;
-            for(int i = 0; i<m3d.size(); i++){
+            for(int i = 0; i<ny; i++){
                 std::vector<std::complex<double>> temp;
-                for(int j = 0; j < m3d[i].size(); j++){
+                for(int j = 0; j < nx; j++){
                     temp.push_back(m3d[i][j]*(pow(h[i][j],n)-pow(g[i][j], n)));
                 }
                 m3d2.push_back(temp);
             }
             fft2(m3d2, MH);
-            for(int i = 0; i<sum.size(); i++){
-                for(int j=0; j<sum[i].size(); j++){
+            for(int i = 0; i<ny; i++){
+                for(int j=0; j<nx; j++){
                     sum[i][j] += dexpw[i][j]*(pow(k[i][j],n-1)/nfac(n))*MH[i][j];
                 }
             }
@@ -974,17 +962,17 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         }
         // transform to get new solution
         std::vector<std::vector<std::complex<double>>> M;
-        for(int i = 0; i < B.size(); i++){
+        for(int i = 0; i < ny; i++){
             std::vector<std::complex<double>> temp;
-            for(int j = 0; j< B[i].size(); j++){
+            for(int j = 0; j< nx; j++){
                 temp.push_back(B[i][j]-(sum[i][j]));
             }
             M.push_back(temp);
         }
         // filter before transforming to ensure no blow ups
         M[0][0]=0;
-        for(int i = 0; i < B.size(); i++){
-            for(int j = 0; j< B[i].size(); j++){
+        for(int i = 0; i < ny; i++){
+            for(int j = 0; j< nx; j++){
                 mlast[i][j]=(M[i][j]/thick[i][j])*wts[i][j];
             }
         }
@@ -994,23 +982,23 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         // do convergence test
         for(auto &vec: m3d){
             for(auto &val: vec){
-                val = val/static_cast<double>(m3d.size()*m3d[0].size());
+                val = val/static_cast<double>(ny*nx);
             }
         }
         errmax=0;
         std::vector<std::vector<std::complex<double>>> s1(ny, std::vector<std::complex<double>>(nx,0));
         std::vector<std::vector<std::complex<double>>> s2(ny, std::vector<std::complex<double>>(nx,0));
         std::vector<std::vector<std::complex<double>>> dif;
-        for(int i = 0; i < B.size(); i++){
+        for(int i = 0; i < ny2; i++){
             std::vector<std::complex<double>> temp;
-            for(int j = 0; j< B[i].size(); j++){
+            for(int j = 0; j< nx; j++){
                 temp.push_back(abs(lastm3d[i][j]-m3d[i][j]));
             }
             dif.push_back(temp);
         }
-        for(int i = 0; i < B.size(); i++){
+        for(int i = 0; i < ny; i++){
             std::vector<std::complex<double>> temp;
-            for(int j = 0; j< B[i].size(); j++){
+            for(int j = 0; j< nx; j++){
                 s2[i][j]=s2[i][j]+dif[i][j]*dif[i][j];
             }
         }
@@ -1026,7 +1014,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         
         lastm3d=m3d;
         
-        std::complex<double> avg=difsum/(dif.size()*dif[0].size()*1.0);
+        std::complex<double> avg=difsum/(ny*nx*1.0);
         //  rms=sqrt(s2/(nx*ny) - avg^2);
         if (iter==0){ 
             first1=errmax+1e-10; 
