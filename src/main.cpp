@@ -725,6 +725,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     printf(" READ %6.0f x %6.0f matrix by columns \n", nx, ny);
     printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
     
+    //TODO: Calculate mean for real
     const double mnf3d = -1.7763568394002505e-15;
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of %10.3f from field \n", mnf3d);
