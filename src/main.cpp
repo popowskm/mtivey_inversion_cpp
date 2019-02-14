@@ -1,5 +1,6 @@
 #include <iomanip>
 #include <vector>
+#include <valarray>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fstream>
@@ -10,79 +11,31 @@
 #include <algorithm>
 #include <iostream>
 #include <fftw3.h>
+#include <tuple>
 
 #define pi 3.141592653589793
-std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
+std::tuple<double, double, double, double> magfd(int date, int itype, double alt, double colat, double elong);
 
-std::complex<double> twodmax(std::vector<std::vector<std::complex<double>>> base)
-{
-    std::vector<std::complex<double>> temp;
-    for (auto vec : base)
-    {
-        temp.push_back(*std::max_element(vec.begin(), vec.end(), [](std::complex<double> first, std::complex<double> second) { return (first.real() < second.real()); }));
-    }
-    std::complex<double> max = *std::max_element(temp.begin(), temp.end(), [](std::complex<double> first, std::complex<double> second) { return (first.real() < second.real()); });
-    return max;
-}
-
-std::complex<double> twodmin(std::vector<std::vector<std::complex<double>>> base)
-{
-    std::vector<std::complex<double>> temp;
-    for (auto vec : base)
-    {
-        temp.push_back(*std::min_element(vec.begin(), vec.end(), [](std::complex<double> first, std::complex<double> second) { return (first.real() < second.real()); }));
-    }
-    std::complex<double> min = *std::min_element(temp.begin(), temp.end(), [](std::complex<double> first, std::complex<double> second) { return (first.real() < second.real()); });
-    return min;
-}
-
-double realtwodmax(std::vector<std::vector<double>> base)
-{
-    std::vector<double> temp;
-    for (auto vec : base)
-    {
-        temp.push_back(*std::max_element(vec.begin(), vec.end()));
-    }
-    double max = *std::max_element(temp.begin(), temp.end());
-    return max;
-}
-
-double realtwodmin(std::vector<std::vector<double>> base)
-{
-    std::vector<double> temp;
-    for (auto vec : base)
-    {
-        temp.push_back(*std::min_element(vec.begin(), vec.end()));
-    }
-    double min = *std::min_element(temp.begin(), temp.end());
-    return min;
-}
-
-void writes(std::vector<std::vector<std::complex<double>>> a, std::string b)
+void writes(std::valarray<std::complex<double>> a, std::string b, int cols)
 {
     std::ofstream file(b);
-    for (int i = 0; i < a.size(); i++)
-    {
-        auto temps = a[i].size();
-        for (int j = 0; j < a[i].size() - 1; j++)
-        {
-            file << std::setprecision(16) << a[i][j].real();
-            if (a[i][j].imag() >= 0)
-                file << std::setprecision(16) << '+';
-            file << std::setprecision(16) << a[i][j].imag() << "i,";
-        }
-        file << std::setprecision(16) << a[i][a.size() - 1].real();
-        if (a[i][a.size() - 1].imag() >= 0)
+    int len = a.size();
+    for (int i = 0; i < len; i++)
+    {        
+        file << std::setprecision(16) << a[i].real();
+        if (a[i].imag() >= 0)
             file << std::setprecision(16) << '+';
-        file << std::setprecision(16) << a[i][a.size() - 1].imag() << "i" << std::endl;
+        file << std::setprecision(16) << a[i].imag() << "i,";
+        if (i%cols == 0) file << std::endl;
     }
     file.close();
 }
 
-void reads(std::string filename, std::vector<std::vector<double>> &v)
+void reads(std::string filename, std::valarray<double> &v)
 {
     std::ifstream file(filename);
     int l = 0;
+    std::vector<std::vector<double>> temp;
 
     while (file)
     {
@@ -112,10 +65,16 @@ void reads(std::string filename, std::vector<std::vector<double>> &v)
                 }
             }
 
-            v.push_back(record);
+            temp.push_back(record);
         }
     }
-
+    int pos = 0;
+    for(auto vec: temp){
+        for(auto val: vec){
+            v[pos] = val;
+            pos++;
+        }
+    }
     if (!file.eof())
     {
         std::cerr << "Could not read file " << filename << "\n";
@@ -126,29 +85,36 @@ void reads(std::string filename, std::vector<std::vector<double>> &v)
 
 //MATLAB FUNCTION REPLICATION
 //Rotates halfway in x and y
-std::vector<std::vector<double>> fftshift(std::vector<std::vector<double>> a)
+std::valarray<double> fftshift(std::valarray<double> data, int rows, int cols)
 {
-    std::vector<std::vector<double>>::const_iterator first = a.begin() + ceil(a.size() / 2);
-    std::vector<std::vector<double>>::const_iterator last = a.end();
-    std::vector<std::vector<double>> temp(first, last);
-    for (auto ptr = a.begin(); ptr < first; ptr++)
-    {
-        temp.push_back(*ptr);
+    for(int i = 0; i < rows; i++){
+        std::slice sl(i * cols, cols, 1);
+        std::valarray<double> temp(data[sl]);
+        data[sl] = temp.cshift(cols/2);
     }
+    data.cshift(data.size()/2);
 
-    for (std::vector<double> &j : temp)
-    {
-        std::vector<double>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
-        std::vector<double>::const_iterator last2 = j.end();
-        std::vector<double> temp2(first2, last2);
-        for (auto ptr = j.begin(); ptr < first2; ptr++)
-        {
-            temp2.push_back(*ptr);
-        }
-        j = temp2;
-    }
+    // std::valarray<std::valarray<double>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    // std::valarray<std::valarray<double>>::const_iterator last = a.end();
+    // std::valarray<std::valarray<double>> temp(first, last);
+    // for (auto ptr = a.begin(); ptr < first; ptr++)
+    // {
+    //     temp.push_back(*ptr);
+    // }
 
-    return temp;
+    // for (std::valarray<double> &j : temp)
+    // {
+    //     std::valarray<double>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+    //     std::valarray<double>::const_iterator last2 = j.end();
+    //     std::valarray<double> temp2(first2, last2);
+    //     for (auto ptr = j.begin(); ptr < first2; ptr++)
+    //     {
+    //         temp2.push_back(*ptr);
+    //     }
+    //     j = temp2;
+    // }
+
+    // return temp;
 }
 
 //Phase angle
@@ -157,97 +123,85 @@ std::complex<double> angle(std::complex<double> a)
     return atan2(a.imag(), a.real());
 }
 
-std::vector<std::vector<std::complex<double>>> fftshift_complex(std::vector<std::vector<std::complex<double>>> a)
+std::valarray<std::complex<double>> fftshift_complex(std::valarray<std::complex<double>> data, int rows, int cols)
 {
-    std::vector<std::vector<std::complex<double>>>::const_iterator first = a.begin() + ceil(a.size() / 2);
-    std::vector<std::vector<std::complex<double>>>::const_iterator last = a.end();
-    std::vector<std::vector<std::complex<double>>> temp(first, last);
-    for (auto ptr = a.begin(); ptr < first; ptr++)
-    {
-        temp.push_back(*ptr);
+    for(int i = 0; i < rows; i++){
+        std::slice sl(i * cols, cols, 1);
+        std::valarray<std::complex<double>> temp(data[sl]);
+        data[sl] = temp.cshift(cols/2);
     }
+    data.cshift(data.size()/2);
+    // std::valarray<std::valarray<std::complex<double>>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    // std::valarray<std::valarray<std::complex<double>>>::const_iterator last = a.end();
+    // std::valarray<std::valarray<std::complex<double>>> temp(first, last);
+    // for (auto ptr = a.begin(); ptr < first; ptr++)
+    // {
+    //     temp.push_back(*ptr);
+    // }
 
-    for (std::vector<std::complex<double>> &j : temp)
-    {
-        std::vector<std::complex<double>>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
-        std::vector<std::complex<double>>::const_iterator last2 = j.end();
-        std::vector<std::complex<double>> temp2(first2, last2);
-        for (auto ptr = j.begin(); ptr < first2; ptr++)
-        {
-            temp2.push_back(*ptr);
-        }
-        j = temp2;
-    }
+    // for (std::valarray<std::complex<double>> &j : temp)
+    // {
+    //     std::valarray<std::complex<double>>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+    //     std::valarray<std::complex<double>>::const_iterator last2 = j.end();
+    //     std::valarray<std::complex<double>> temp2(first2, last2);
+    //     for (auto ptr = j.begin(); ptr < first2; ptr++)
+    //     {
+    //         temp2.push_back(*ptr);
+    //     }
+    //     j = temp2;
+    // }
 
-    return temp;
+    // return temp;
 }
 
-void fft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std::vector<std::complex<double>>> &output)
+void fft(std::valarray<std::complex<double>> &input, std::valarray<std::complex<double>> &output, int rows, int cols)
 {
     fftw_complex *in, *out;
     fftw_plan p;
 
-    int size = input.size(), size2 = input[0].size();
+    int size = input.size();;
 
-    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size * size2);
-    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size * size2);
-    p = fftw_plan_dft_2d(size, size2, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    p = fftw_plan_dft_2d(rows, cols, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
-    int i = 0;
     for (int x = 0; x < size; x++)
     {
-        for (int z = 0; z < size2; z++)
-        {
-            in[i][0] = std::real(input[x][z]);
-            in[i][1] = std::imag(input[x][z]);
-            i++;
-        }
+        in[x][0] = std::real(input[x]);
+        in[x][1] = std::imag(input[x]);
     }
 
     fftw_execute(p);
-    i = 0;
     for (int x = 0; x < size; x++)
     {
-        for (int z = 0; z < size2; z++)
-        {
-            output[x][z] = std::complex<double>(out[i][0], out[i][1]);
-            i++;
-        }
+        output[x] = std::complex<double>(out[x][0], out[x][1]);
     }
     fftw_destroy_plan(p);
     fftw_free(in);
     fftw_free(out);
 }
 
-void ifft2(std::vector<std::vector<std::complex<double>>> &input, std::vector<std::vector<std::complex<double>>> &output)
+void ifft2(std::valarray<std::complex<double>> &input, std::valarray<std::complex<double>> &output, int rows, int cols)
 {
     fftw_complex *in, *out;
     fftw_plan p;
 
-    int size = input.size(), size2 = input[0].size();
+    int size = input.size();
 
-    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size * size2);
-    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size * size2);
-    p = fftw_plan_dft_2d(size, size2, in, out, FFTW_BACKWARD, FFTW_PATIENT);
+    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    p = fftw_plan_dft_2d(rows, cols, in, out, FFTW_BACKWARD, FFTW_PATIENT);
 
-    int i = 0;
-    for (int x = 0; x < size; x++)
-        for (int z = 0; z < size2; z++)
-        {
-            in[i][0] = std::real(input[x][z]);
-            in[i][1] = std::imag(input[x][z]);
-            i++;
-        }
-    fftw_execute(p);
-
-    i = 0;
     for (int x = 0; x < size; x++)
     {
-        for (int z = 0; z < size2; z++)
-        {
-            output[x][z] = std::complex<double>(out[i][0], out[i][1]);
-            i++;
-        }
+        in[x][0] = std::real(input[x]);
+        in[x][1] = std::imag(input[x]);
+    }
+    fftw_execute(p);
+
+    for (int x = 0; x < size; x++)
+    {
+        output[x] = std::complex<double>(out[x][0], out[x][1]);
     }
 }
 
@@ -265,7 +219,7 @@ double nfac(double N)
     return nsum;
 }
 
-std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, double dy, double wlong, double wshort)
+std::valarray<double> bpass3d(double nnx, double nny, double dx, double dy, double wlong, double wshort)
 {
     // BPASS3D set up bandpass filter weights in 2 dimensions
     // using a cosine tapered filter
@@ -285,27 +239,27 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     double ny2plus = ny2 + 1;
     double dkx = 2 * pi / (nnx * dx);
     double dky = 2 * pi / (nny * dy);
-    std::vector<double> kx;
+    std::valarray<double> kx(nnx);
     for (int i = -nx2; i < nx2; i++)
     {
-        kx.push_back(i * dkx);
+        kx[i+nx2] = (i * dkx);
     }
-    std::vector<double> ky;
+    std::valarray<double> ky(nny);
     for (int i = -ny2; i < ny2; i++)
     {
-        ky.push_back(i * dky);
+        ky[i + ny2] = (i * dky);
     }
-    std::vector<std::vector<double>> X(nny, ky);
-    std::vector<std::vector<double>> Y;
+    std::valarray<double> X(nny, ky);
+    std::valarray<double> Y;
     for (auto num : kx)
     {
-        std::vector<double> temp(nnx, num);
+        std::valarray<double> temp(nnx, num);
         Y.push_back(temp);
     }
-    std::vector<std::vector<double>> k;
+    std::valarray<std::valarray<double>> k;
     for (int i = 0; i < nny; i++)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (int j = 0; j < nnx; j++)
         {
             temp.push_back(sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2)));
@@ -347,7 +301,7 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     printf("   --  CUT TO NYQUIST X,Y= %8.3f  %8.3f\n", wnx, wny);
     double nnx2 = nnx / 2 + 1;
     double nny2 = nny / 2 + 1;
-    std::vector<std::vector<double>> wts(nny, std::vector<double>(nnx, 0)); // initialise to zero
+    std::valarray<std::valarray<double>> wts(nny, std::valarray<double>(nnx)); // initialise to zero
     for (int i = 0; i < nny; i++)
     {
         for (int j = 0; j < nnx; j++)
@@ -378,7 +332,7 @@ std::vector<std::vector<double>> bpass3d(double nnx, double nny, double dx, doub
     return wts;
 }
 
-std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, double azim, double sdec, double sdip, bool opts)
+std::valarray<double> nskew(double yr, double rlat, double rlon, double zobs, double azim, double sdec, double sdip, bool opts)
 {
     // NSKEW - Compute skewness parameter and amplitude factor
     //  following Schouten (1971)
@@ -406,9 +360,9 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
     // See skew.m for more general calculation
     //---------------------------------------------------------
     double rad = atan(1.0) * 4 / 180;
-    // get unit vectors
+    // get unit valarrays
     double colat = 90.0 - rlat;
-    std::vector<double> y = magfd(abs(yr), 1, zobs, colat, rlon);
+    std::valarray<double> y = magfd(abs(yr), 1, zobs, colat, rlon);
     // compute skewness parameter
     double bx = y[0];
     double by = y[1];
@@ -465,9 +419,9 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
             theta = theta - 360;
         }
     }
-    // compute unit vectors for a check
-    std::vector<double> hatm;
-    std::vector<double> hatb;
+    // compute unit valarrays for a check
+    std::valarray<double> hatm;
+    std::valarray<double> hatb;
     hatm.push_back(cos(sdip * rad) * sin((sdec - azim) * rad));
     hatm.push_back(cos(sdip * rad) * cos((sdec - azim) * rad));
     hatm.push_back(-sin(sdip * rad));
@@ -482,7 +436,7 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
         printf("  COMPONENTS ARE (X,Y,Z=ALONG, ACROSS PROFILE, AND UP\n\n");
     }
 
-    std::vector<double> a({theta, ampfac});
+    std::valarray<double> a({theta, ampfac});
     return a;
 }
 
@@ -525,15 +479,16 @@ std::vector<double> nskew(double yr, double rlat, double rlon, double zobs, doub
 // http://deeptow.whoi.edu/matlab.html
 // Copyright: Maurice A. Tivey, 2017
 // Woods Hole Oceanographic Institution
-std::vector<double> magfd(int date, int itype, double alt, double colat, double elong)
+std::valarray<double> magfd(int date, int itype, double alt, double colat, double elong)
 {
     // Initialize IGRFYEAR as 2015
     int igrfyear = 2015;
-    std::vector<int> dgrf;
+    std::vector<int> dgrf_a((2015-1000)/5, 0);
     for (int i = 1000; i < 2015; i += 5)
     {
-        dgrf.push_back(i);
+        dgrf_a.push_back(i);
     }
+    std::valarray<int> dgrf(dgrf_a);
     std::string igrffile = "sh" + std::to_string(igrfyear);
 
     // simple switch if printout needed
@@ -547,12 +502,12 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     // TODO: Determine the best way to supply the data to the program -- CSV?
 
     // WARNING: TEMPORARILY HARDCODED VARIABLES
-    std::vector<std::vector<double>> agh_prime;
+    std::valarray<std::valarray<double>> agh_prime;
     reads("agh", agh_prime);
-    std::vector<std::vector<double>> dgh_prime;
+    std::valarray<std::valarray<double>> dgh_prime;
     reads("dgh", dgh_prime);
-    std::vector<double> agh = agh_prime[0];
-    std::vector<double> dgh = dgh_prime[0];
+    std::valarray<double> agh = agh_prime[0];
+    std::valarray<double> dgh = dgh_prime[0];
     int base = 1990;
     int i = 199;
     double t = 0;
@@ -562,8 +517,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     double r = alt;
     double slat = cos(colat * d2r);
     double clat = sin(colat * d2r);
-    std::vector<double> cl({cos(elong * d2r)});
-    std::vector<double> sl({sin(elong * d2r)});
+    std::valarray<double> cl({cos(elong * d2r)});
+    std::valarray<double> sl({sin(elong * d2r)});
     double x = 0.0;
     double y = 0.0;
     double z = 0.0;
@@ -594,8 +549,8 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     }
     double ratio = re / r;
 
-    std::vector<double> p({2.0 * slat, 2.0 * clat, 4.5 * slat * slat - 1.5, sqrt(27) * clat * slat});
-    std::vector<double> q({-clat, slat, -3.0 * clat * slat, sqrt(3) * (slat * slat - clat * clat)});
+    std::valarray<double> p({2.0 * slat, 2.0 * clat, 4.5 * slat * slat - 1.5, sqrt(27) * clat * slat});
+    std::valarray<double> q({-clat, slat, -3.0 * clat * slat, sqrt(3) * (slat * slat - clat * clat)});
 
     double nmax = 13; // Max number of harmonic degrees , 13
 
@@ -673,7 +628,7 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
     z = z * cd - one * sd;
     t = sqrt(x * x + y * y + z * z);
 
-    std::vector<double> b({x, y, z, t});
+    std::valarray<double> b({x, y, z, t});
     return b;
 }
 
@@ -711,10 +666,10 @@ std::vector<double> magfd(int date, int itype, double alt, double colat, double 
 // MAT May  5 1995
 // MAT Mar 1996 (new igrf)
 // calls <syn3d,magfd,nskew,bpass3d>
-std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, std::vector<std::vector<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, std::vector<std::vector<double>> thick, double azim, double dx, double dy, double sdec, double sdip)
+std::valarray<std::valarray<double>> inv3da(std::valarray<std::valarray<double>> f3d, std::valarray<std::valarray<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, std::valarray<std::valarray<double>> thick, double azim, double dx, double dy, double sdec, double sdip)
 {
     //error
-    std::vector<std::vector<double>> a;
+    std::valarray<std::valarray<double>> a;
     // parameters defined
     const std::complex<double> i_math(0.0, 1.0);
     const double rad = pi / 180; // conversion radians to degrees
@@ -737,7 +692,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     printf(" azim = %12.6f\n", azim);
     printf(" Nterms,Tol %6.0f %10.5f \n", nterms, tol);
 
-    if (h.empty() || f3d.empty())
+    if (h.size() == 0 || f3d.size() == 0)
     {
         printf("Bathy and field arrays must have values\n");
         return a;
@@ -754,11 +709,11 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
 
     const double mnf3d = -1.7763568394002505e-15;
-    std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::vector<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
+    std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::valarray<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of %10.3f from field \n", mnf3d);
 
     double colat = 90. - rlat;
-    std::vector<double> y = magfd(yr, 1, zobs, colat, rlon);
+    std::valarray<double> y = magfd(yr, 1, zobs, colat, rlon);
 
     double bx = y[0];
     double by = y[1];
@@ -768,7 +723,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     double incl1 = atan2(bz, bh) / rad;
     double theta;
     double ampfac;
-    std::vector<double> skew_array;
+    std::valarray<double> skew_array;
 
     if (abs(sdec) > 0. || abs(sdip) > 0.)
     {
@@ -802,27 +757,27 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     double dkx = pi / (nx * dx);
     double dky = pi / (ny * dy);
 
-    std::vector<double> kx(nx, 0);
+    std::valarray<double> kx(nx, 0);
     for (int i = nx2 * -1; i < nx2; i++)
     {
         kx[i] = (i * dkx);
     }
-    std::vector<double> ky(nx, 0);
+    std::valarray<double> ky(nx, 0);
     for (int i = ny2 * -1; i < ny2; i++)
     {
         ky[i] = (i * dky);
     }
-    std::vector<std::vector<double>> X(nx, ky);
-    std::vector<std::vector<double>> Y;
+    std::valarray<std::valarray<double>> X(nx, ky);
+    std::valarray<std::valarray<double>> Y;
     for (auto num : kx)
     {
-        std::vector<double> temp(nx, num);
+        std::valarray<double> temp(nx, num);
         Y.push_back(temp);
     }
-    std::vector<std::vector<double>> k;
+    std::valarray<std::valarray<double>> k;
     for (int i = 0; i < ny; i++)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (int j = 0; j < nx; j++)
         {
             temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
@@ -832,12 +787,12 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
 
     k = fftshift(k);
 
-    std::vector<std::vector<std::complex<double>>> ob;
-    std::vector<std::vector<std::complex<double>>> om;
+    std::valarray<std::valarray<std::complex<double>>> ob;
+    std::valarray<std::valarray<std::complex<double>>> om;
     for (int i = 0; i < ny; i++)
     {
-        std::vector<std::complex<double>> temp1;
-        std::vector<std::complex<double>> temp2;
+        std::valarray<std::complex<double>> temp1;
+        std::valarray<std::complex<double>> temp2;
         for (int j = 0; j < nx; j++)
         {
             temp1.push_back(sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[i][j], X[i][j]) + rb1));
@@ -846,10 +801,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         ob.push_back(temp1);
         om.push_back(temp2);
     }
-    std::vector<std::vector<std::complex<double>>> o;
+    std::valarray<std::valarray<std::complex<double>>> o;
     for (int i = 0; i < ny; i++)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (int j = 0; j < nx; j++)
         {
             temp.push_back(ob[i][j] * om[i][j]);
@@ -858,10 +813,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
 
     o = fftshift_complex(o);
-    std::vector<std::vector<std::complex<double>>> amp;
+    std::valarray<std::valarray<std::complex<double>>> amp;
     for (auto a : o)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (auto b : a)
         {
             temp.push_back(abs(b));
@@ -869,10 +824,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         amp.push_back(temp);
     }
     // amplitude factor
-    std::vector<std::vector<std::complex<double>>> phase;
+    std::valarray<std::valarray<std::complex<double>>> phase;
     for (int i = 0; i < ny; i++)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (int j = 0; j < nx; j++)
         {
             temp.push_back(exp(i_math * (angle(ob[i][j]) + angle(om[i][j]))));
@@ -883,10 +838,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     // phase angle
     double math_constant = 2 * pi * mu;
     // calculate base layer
-    std::vector<std::vector<std::complex<double>>> g;
+    std::valarray<std::valarray<std::complex<double>>> g;
     for (int i = 0; i < ny; i++)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (int j = 0; j < nx; j++)
         {
             temp.push_back(-(abs(h[i][j]) + thick[i][j]));
@@ -931,22 +886,22 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         }
     }
     // set up bandpass filter
-    std::vector<std::vector<double>> wts = bpass3d(nx, ny, dx, dy, wl, ws);
+    std::valarray<std::valarray<double>> wts = bpass3d(nx, ny, dx, dy, wl, ws);
     // do eterm
-    std::vector<std::vector<double>> dexpz;
+    std::valarray<std::valarray<double>> dexpz;
     for (auto a : k)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (auto b : a)
         {
             temp.push_back(exp(b * zup));
         }
         dexpz.push_back(temp);
     }
-    std::vector<std::vector<double>> dexpw;
+    std::valarray<std::valarray<double>> dexpw;
     for (auto a : k)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (auto b : a)
         {
             temp.push_back(exp(-b * hwiggl));
@@ -955,20 +910,20 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
 
     // take fft of observed magnetic field and initial m3d
-    std::vector<std::vector<std::complex<double>>> m3d(ny, std::vector<std::complex<double>>(nx, 0)); // make an initial guess of 0 for m3d
-    std::vector<std::vector<std::complex<double>>> f3d_2;
+    std::valarray<std::valarray<std::complex<double>>> m3d(ny, std::valarray<std::complex<double>>(nx, 0)); // make an initial guess of 0 for m3d
+    std::valarray<std::valarray<std::complex<double>>> f3d_2;
     for (auto a : f3d)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (auto b : a)
         {
             temp.push_back(b);
         }
         f3d_2.push_back(temp);
     }
-    std::vector<std::vector<std::complex<double>>> F(ny, std::vector<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> F(ny, std::valarray<std::complex<double>>(nx, 0));
     fft2(f3d_2, F);
-    std::vector<std::vector<std::complex<double>>> HG(ny, std::vector<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> HG(ny, std::valarray<std::complex<double>>(nx, 0));
     for (int i = 0; i < ny; i++)
     {
         for (int j = 0; j < nx; j++)
@@ -978,13 +933,13 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     }
 
     int intsum = 0;
-    std::vector<std::vector<std::complex<double>>> mlast(ny, std::vector<std::complex<double>>(nx, 0));
-    std::vector<std::vector<std::complex<double>>> lastm3d(ny, std::vector<std::complex<double>>(nx, 0));
-    std::vector<std::vector<std::complex<double>>> B;
+    std::valarray<std::valarray<std::complex<double>>> mlast(ny, std::valarray<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> lastm3d(ny, std::valarray<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> B;
 
     for (int i = 0; i < ny; i++)
     {
-        std::vector<std::complex<double>> temp;
+        std::valarray<std::complex<double>> temp;
         for (int j = 0; j < nx; j++)
         {
             temp.push_back((F[i][j] * dexpz[i][j]) / (math_constant * amp[i][j] * phase[i][j]));
@@ -1004,15 +959,15 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     for (int iter = 0; iter < nitrs; iter++)
     {
         // summation loop, start with n = 2
-        std::vector<std::vector<std::complex<double>>> sum(ny, std::vector<std::complex<double>>(nx, 0));
+        std::valarray<std::valarray<std::complex<double>>> sum(ny, std::valarray<std::complex<double>>(nx, 0));
         for (nkount = 2; nkount < nterms + 1; nkount++)
         {
             int n = nkount;
-            std::vector<std::vector<std::complex<double>>> MH(ny, std::vector<std::complex<double>>(nx, 0));
-            std::vector<std::vector<std::complex<double>>> m3d2;
+            std::valarray<std::valarray<std::complex<double>>> MH(ny, std::valarray<std::complex<double>>(nx, 0));
+            std::valarray<std::valarray<std::complex<double>>> m3d2;
             for (int i = 0; i < ny; i++)
             {
-                std::vector<std::complex<double>> temp;
+                std::valarray<std::complex<double>> temp;
                 for (int j = 0; j < nx; j++)
                 {
                     temp.push_back(m3d[i][j] * (pow(h[i][j], n) - pow(g[i][j], n)));
@@ -1030,10 +985,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
             errmax = abs(twodmax(sum));
         }
         // transform to get new solution
-        std::vector<std::vector<std::complex<double>>> M;
+        std::valarray<std::valarray<std::complex<double>>> M;
         for (int i = 0; i < ny; i++)
         {
-            std::vector<std::complex<double>> temp;
+            std::valarray<std::complex<double>> temp;
             for (int j = 0; j < nx; j++)
             {
                 temp.push_back(B[i][j] - (sum[i][j]));
@@ -1061,12 +1016,12 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
             }
         }
         errmax = 0;
-        std::vector<std::vector<std::complex<double>>> s1(ny, std::vector<std::complex<double>>(nx, 0));
-        std::vector<std::vector<std::complex<double>>> s2(ny, std::vector<std::complex<double>>(nx, 0));
-        std::vector<std::vector<std::complex<double>>> dif;
+        std::valarray<std::valarray<std::complex<double>>> s1(ny, std::valarray<std::complex<double>>(nx));
+        std::valarray<std::valarray<std::complex<double>>> s2(ny, std::valarray<std::complex<double>>(nx));
+        std::valarray<std::valarray<std::complex<double>>> dif;
         for (int i = 0; i < ny2; i++)
         {
-            std::vector<std::complex<double>> temp;
+            std::valarray<std::complex<double>> temp;
             for (int j = 0; j < nx; j++)
             {
                 temp.push_back(abs(lastm3d[i][j] - m3d[i][j]));
@@ -1075,7 +1030,7 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         }
         for (int i = 0; i < ny; i++)
         {
-            std::vector<std::complex<double>> temp;
+            std::valarray<std::complex<double>> temp;
             for (int j = 0; j < nx; j++)
             {
                 s2[i][j] = s2[i][j] + dif[i][j] * dif[i][j];
@@ -1143,10 +1098,10 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
                 val = val + shift - hwiggl;
             }
         }
-        std::vector<std::vector<double>> greal;
+        std::valarray<std::valarray<double>> greal;
         for (auto vec : g)
         {
-            std::vector<double> temp;
+            std::valarray<double> temp;
             for (auto val : vec)
             {
                 temp.push_back(val.real());
@@ -1155,11 +1110,11 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
         }
     }
     //
-    std::vector<std::vector<double>> returns;
+    std::valarray<std::valarray<double>> returns;
     writes(m3d, "final");
     for (auto a : m3d)
     {
-        std::vector<double> temp;
+        std::valarray<double> temp;
         for (auto b : a)
         {
             temp.push_back(b.real());
@@ -1171,13 +1126,13 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
 
 int main()
 {
-    std::vector<std::vector<double>> f3d;
+    std::valarray<std::valarray<double>> f3d;
     reads("f3d", f3d);
-    std::vector<std::vector<double>> h;
+    std::valarray<std::valarray<double>> h;
     reads("h", h);
-    std::vector<std::vector<double>> other;
+    std::valarray<std::valarray<double>> other;
     reads("other", other);
-    std::vector<std::vector<double>> thick;
+    std::valarray<std::valarray<double>> thick;
     reads("thick", thick);
 
     double wl = other[0][0];

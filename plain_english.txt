@@ -1,0 +1,5 @@
+set constants (including tolerances, main loop iterations, and taylor series terms)
+check for empty arrays
+calculate mean of magnetic field and remove from each value of field
+(fn) calculate earth's magnetic field using historical data files. returns x,y,z,t components (4 values)
+(fn) computes skewness parameter and amplitude factor
