@@ -707,7 +707,6 @@ std::valarray<std::valarray<double>> inv3da(std::valarray<std::valarray<double>>
     }
     printf(" READ %6.0f x %6.0f matrix by columns \n", nx, ny);
     printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
-
     const double mnf3d = -1.7763568394002505e-15;
     std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::valarray<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
     printf("Remove mean of %10.3f from field \n", mnf3d);
