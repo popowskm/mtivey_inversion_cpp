@@ -1,34 +1,336 @@
+#include <iomanip>
+#include <vector>
 #include <valarray>
+#include <stdlib.h>
+#include <stdio.h>
+#include <fstream>
 #include <cmath>
 #include <complex>
 #include <numeric>
 #include <algorithm>
 #include <iostream>
+#include <fftw3.h>
+#include <tuple>
 
-std::valarray<double> magfd(int date, int itype, double alt, double colat, double elong);
+#define pi 3.141592653589793
+std::tuple<double, double, double, double> magfd(int date, int itype, double alt, double colat, double elong);
 
-void prints(std::valarray<std::valarray<double>> f3d)
+void writes(std::valarray<std::complex<double>> a, std::string b, int cols)
 {
-    for (int i = 0; i < f3d.size(); i++)
+    std::ofstream file(b);
+    int len = a.size();
+    for (int i = 0; i < len; i++)
+    {        
+        file << std::setprecision(16) << a[i].real();
+        if (a[i].imag() >= 0)
+            file << std::setprecision(16) << '+';
+        file << std::setprecision(16) << a[i].imag() << "i,";
+        if (i%cols == 0) file << std::endl;
+    }
+    file.close();
+}
+
+void reads(std::string filename, std::valarray<double> &v)
+{
+    std::ifstream file(filename);
+    int l = 0;
+    std::vector<std::vector<double>> temp;
+
+    while (file)
     {
-        for (int j = 0; j < f3d[i].size(); j++)
+        l++;
+        std::string s;
+        if (!getline(file, s))
+            break;
+        if (s[0] != '#')
         {
-            std::cout << f3d[i][j] << ' ';
+            std::istringstream ss(s);
+            std::vector<double> record;
+
+            while (ss)
+            {
+                std::string line;
+                if (!getline(ss, line, ','))
+                    break;
+                try
+                {
+                    record.push_back(stod(line));
+                }
+                catch (const std::invalid_argument e)
+                {
+                    std::cout << "NaN found in file " << filename << " line " << l
+                              << std::endl;
+                    e.what();
+                }
+            }
+
+            temp.push_back(record);
+        }
+    }
+    int pos = 0;
+    for(auto vec: temp){
+        for(auto val: vec){
+            v[pos] = val;
+            pos++;
         }
         std::cout << "\n";
     }
+    if (!file.eof())
+    {
+        std::cerr << "Could not read file " << filename << "\n";
+    }
+
+    file.close();
 }
 
-void prints1(std::valarray<double> f3d)
+//MATLAB FUNCTION REPLICATION
+//Rotates halfway in x and y
+std::valarray<double> fftshift(std::valarray<double> data, int rows, int cols)
 {
-    for (int i = 0; i < f3d.size(); i++)
+    for(int i = 0; i < rows; i++){
+        std::slice sl(i * cols, cols, 1);
+        std::valarray<double> temp(data[sl]);
+        data[sl] = temp.cshift(cols/2);
+    }
+    data.cshift(data.size()/2);
+
+    // std::valarray<std::valarray<double>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    // std::valarray<std::valarray<double>>::const_iterator last = a.end();
+    // std::valarray<std::valarray<double>> temp(first, last);
+    // for (auto ptr = a.begin(); ptr < first; ptr++)
+    // {
+    //     temp.push_back(*ptr);
+    // }
+
+    // for (std::valarray<double> &j : temp)
+    // {
+    //     std::valarray<double>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+    //     std::valarray<double>::const_iterator last2 = j.end();
+    //     std::valarray<double> temp2(first2, last2);
+    //     for (auto ptr = j.begin(); ptr < first2; ptr++)
+    //     {
+    //         temp2.push_back(*ptr);
+    //     }
+    //     j = temp2;
+    // }
+
+    // return temp;
+}
+
+//Phase angle
+std::complex<double> angle(std::complex<double> a)
+{
+    return atan2(a.imag(), a.real());
+}
+
+std::valarray<std::complex<double>> fftshift_complex(std::valarray<std::complex<double>> data, int rows, int cols)
+{
+    for(int i = 0; i < rows; i++){
+        std::slice sl(i * cols, cols, 1);
+        std::valarray<std::complex<double>> temp(data[sl]);
+        data[sl] = temp.cshift(cols/2);
+    }
+    data.cshift(data.size()/2);
+    // std::valarray<std::valarray<std::complex<double>>>::const_iterator first = a.begin() + ceil(a.size() / 2);
+    // std::valarray<std::valarray<std::complex<double>>>::const_iterator last = a.end();
+    // std::valarray<std::valarray<std::complex<double>>> temp(first, last);
+    // for (auto ptr = a.begin(); ptr < first; ptr++)
+    // {
+    //     temp.push_back(*ptr);
+    // }
+
+    // for (std::valarray<std::complex<double>> &j : temp)
+    // {
+    //     std::valarray<std::complex<double>>::const_iterator first2 = j.begin() + ceil(j.size() / 2);
+    //     std::valarray<std::complex<double>>::const_iterator last2 = j.end();
+    //     std::valarray<std::complex<double>> temp2(first2, last2);
+    //     for (auto ptr = j.begin(); ptr < first2; ptr++)
+    //     {
+    //         temp2.push_back(*ptr);
+    //     }
+    //     j = temp2;
+    // }
+
+    // return temp;
+}
+
+void fft(std::valarray<std::complex<double>> &input, std::valarray<std::complex<double>> &output, int rows, int cols)
+{
+    fftw_complex *in, *out;
+    fftw_plan p;
+
+    int size = input.size();;
+
+    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    p = fftw_plan_dft_2d(rows, cols, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+
+    for (int x = 0; x < size; x++)
     {
-        std::cout << f3d[i] << " ";
+        in[x][0] = std::real(input[x]);
+        in[x][1] = std::imag(input[x]);
+    }
+
+    fftw_execute(p);
+    for (int x = 0; x < size; x++)
+    {
+        output[x] = std::complex<double>(out[x][0], out[x][1]);
     }
     std::cout << "\n";
 }
 
-std::valarray<double> nskew(double yr, double rlat, double rlon, double zobs, double slin, double sdec, double sdip, bool opts)
+void ifft2(std::valarray<std::complex<double>> &input, std::valarray<std::complex<double>> &output, int rows, int cols)
+{
+    fftw_complex *in, *out;
+    fftw_plan p;
+
+    int size = input.size();
+
+    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
+    p = fftw_plan_dft_2d(rows, cols, in, out, FFTW_BACKWARD, FFTW_PATIENT);
+
+    for (int x = 0; x < size; x++)
+    {
+        in[x][0] = std::real(input[x]);
+        in[x][1] = std::imag(input[x]);
+    }
+    fftw_execute(p);
+
+    for (int x = 0; x < size; x++)
+    {
+        output[x] = std::complex<double>(out[x][0], out[x][1]);
+    }
+}
+
+double nfac(double N)
+{
+    // NFAC - calculate N-factorial
+    //
+    //  Maurice A. Tivey 30-Oct-90
+
+    double nsum = 1;
+    for (int i = 1; i < N + 1; i++)
+    {
+        nsum = nsum * i;
+    }
+    return nsum;
+}
+
+std::valarray<double> bpass3d(double nnx, double nny, double dx, double dy, double wlong, double wshort)
+{
+    // BPASS3D set up bandpass filter weights in 2 dimensions
+    // using a cosine tapered filter
+    // Usage:  wts3d=bpass3d(nnx,nny,dx,dy,wlong,wshort);
+    //
+    // Maurice A. Tivey MATLAB March 1996
+    // MAT Jun 2006
+    // Calls <>
+    //---------------------------------------------------
+    double twopi = pi * 2;
+    double dk1 = 2 * pi / ((nnx - 1) * dx);
+    double dk2 = 2 * pi / ((nny - 1) * dy);
+    // calculate wavenumber array
+    double nx2 = nnx / 2;
+    double nx2plus = nx2 + 1;
+    double ny2 = nny / 2;
+    double ny2plus = ny2 + 1;
+    double dkx = 2 * pi / (nnx * dx);
+    double dky = 2 * pi / (nny * dy);
+    std::valarray<double> kx(nnx);
+    for (int i = -nx2; i < nx2; i++)
+    {
+        kx[i+nx2] = (i * dkx);
+    }
+    std::valarray<double> ky(nny);
+    for (int i = -ny2; i < ny2; i++)
+    {
+        ky[i + ny2] = (i * dky);
+    }
+    std::valarray<double> X(nny, ky);
+    std::valarray<double> Y;
+    for (auto num : kx)
+    {
+        std::valarray<double> temp(nnx, num);
+        Y.push_back(temp);
+    }
+    std::valarray<std::valarray<double>> k;
+    for (int i = 0; i < nny; i++)
+    {
+        std::valarray<double> temp;
+        for (int j = 0; j < nnx; j++)
+        {
+            temp.push_back(sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2)));
+        }
+        k.push_back(temp);
+    } // wavenumber array
+    k = fftshift(k);
+
+    //
+    if (wshort == 0)
+        wshort = (dx * 2 > dy * 2) ? dx * 2 : dy * 2;
+    if (wlong == 0)
+        wlong = (nnx * dx < nny * dy) ? nnx * dx : nny * dy;
+
+    double klo = twopi / wlong;
+    double khi = twopi / wshort;
+    double khif = 0.5 * khi;
+    double klof = 2 * klo;
+    double dkl = klof - klo;
+    double dkh = khi - khif;
+    printf(" BPASS3D\n SET UP BANDPASS WEIGHTS ARRAY :\n");
+    printf(" HIPASS COSINE TAPER FROM K= %10.6f TO K= %10.6f\n", klo, klof);
+    printf(" LOPASS COSINE TAPER FROM K= %10.6f TO K= %10.6f\n", khif, khi);
+    printf(" DK1,DK2= %10.4f  %10.4f\n", dk1, dk2);
+
+    double wl1 = 1000;
+    double wl2 = 1000;
+    if (klo > 0)
+        wl1 = twopi / klo;
+    if (klof > 0)
+        wl2 = twopi / klof;
+    double wl3 = twopi / khif;
+    double wl4 = twopi / khi;
+    double wnx = twopi / (dk1 * (nnx - 1) / 2);
+    double wny = twopi / (dk2 * (nny - 1) / 2);
+
+    printf("IE BANDPASS OVER WAVELENGTHS\n");
+    printf("   INF CUT-- %8.3f --TAPER-- %8.3f (PASS) %8.3f --TAPER--%8.3f\n", wl1, wl2, wl3, wl4);
+    printf("   --  CUT TO NYQUIST X,Y= %8.3f  %8.3f\n", wnx, wny);
+    double nnx2 = nnx / 2 + 1;
+    double nny2 = nny / 2 + 1;
+    std::valarray<std::valarray<double>> wts(nny, std::valarray<double>(nnx)); // initialise to zero
+    for (int i = 0; i < nny; i++)
+    {
+        for (int j = 0; j < nnx; j++)
+        {
+            if (k[i][j] > klo)
+            {
+                if (k[i][j] < khi)
+                    wts[i][j] = 1;
+            }
+        }
+    }
+    for (int i = 0; i < nny; i++)
+    {
+        for (int j = 0; j < nnx; j++)
+        {
+            if (k[i][j] > klo)
+            {
+                if (k[i][j] < klof)
+                    wts[i][j] = wts[i][j] * (1 - cos(pi * (k[i][j] - klo) / dkl)) / 2;
+            }
+            if (k[i][j] > khif)
+            {
+                if (k[i][j] < khi)
+                    wts[i][j] = wts[i][j] * (1 - cos(pi * (khi - k[i][j]) / dkh)) / 2;
+            }
+        }
+    }
+    return wts;
+}
+
+std::valarray<double> nskew(double yr, double rlat, double rlon, double zobs, double azim, double sdec, double sdip, bool opts)
 {
     // NSKEW - Compute skewness parameter and amplitude factor
     //  following Schouten (1971)
@@ -100,20 +402,23 @@ std::valarray<double> nskew(double yr, double rlat, double rlon, double zobs, do
     double theta = (inclm / rad) + (inclf / rad) - 180.;
     if (theta <= -360){
         theta = theta + 360;
-    }else{
-        if (theta >= 360){
-        theta = theta - 360;
+    }
+    else
+    {
+        if (theta >= 360)
+        {
+            theta = theta - 360;
         }
     }
     // compute unit valarrays for a check
     std::valarray<double> hatm;
-    std::valarray<double>hatb;
-    hatm[0] = (cos(sdip * rad) * sin((sdec - slin) * rad));
-    hatm[1] = (cos(sdip * rad) * cos((sdec - slin) * rad));
-    hatm[2] = (-sin(sdip * rad));
-    hatb[0] = (cos(incl1 * rad) * sin((decl1 - slin) * rad));
-    hatb[1] = (cos(incl1 * rad) * cos((decl1 - slin) * rad));
-    hatb[2] = (-sin(incl1 * rad));
+    std::valarray<double> hatb;
+    hatm.push_back(cos(sdip * rad) * sin((sdec - azim) * rad));
+    hatm.push_back(cos(sdip * rad) * cos((sdec - azim) * rad));
+    hatm.push_back(-sin(sdip * rad));
+    hatb.push_back(cos(incl1 * rad) * sin((decl1 - azim) * rad));
+    hatb.push_back(cos(incl1 * rad) * cos((decl1 - azim) * rad));
+    hatb.push_back(-sin(incl1 * rad));
     //
     if (yr > 0) {
         printf("  //10.6f //10.6f //10.6f = MAGNETIZATION UNIT valarray\n", hatm[0], hatm[1], hatm[2]);
@@ -168,13 +473,12 @@ std::valarray<double> magfd(int date, int itype, double alt, double colat, doubl
 {
     // Initialize IGRFYEAR as 2015
     int igrfyear = 2015;
-    std::valarray<int> dgrf;
-    int j = 0;
+    std::vector<int> dgrf_a((2015-1000)/5, 0);
     for (int i = 1000; i < 2015; i += 5)
     {
-        dgrf[j] = i;
-        j++;
+        dgrf_a.push_back(i);
     }
+    std::valarray<int> dgrf(dgrf_a);
     std::string igrffile = "sh" + std::to_string(igrfyear);
 
     // simple switch if printout needed
@@ -188,8 +492,12 @@ std::valarray<double> magfd(int date, int itype, double alt, double colat, doubl
     // TODO: Determine the best way to supply the data to the program -- CSV?
 
     // WARNING: TEMPORARILY HARDCODED VARIABLES
-    std::valarray<int> agh({-31543, -2298, 5922, -677, 2905, -1061, 924, 1121, 1022, -1469, -330, 1256, 3, 572, 523, 876, 628, 195, 660, -69, -361, -210, 134, -75, -184, 328, -210, 264, 53, 5, -33, -86, -124, -16, 3, 63, 61, -9, -11, 83, -217, 2, -58, -35, 59, 36, -90, -69, 70, -55, -45, 0, -13, 34, -10, -41, -1, -21, 28, 18, -12, 6, -22, 11, 8, 8, -4, -14, -9, 7, 1, -13, 2, 5, -9, 16, 5, -5, 8, -18, 8, 10, -20, 1, 14, -11, 5, 12, -3, 1, -2, -2, 8, 2, 10, -1, -2, -1, 2, -3, -4, 2, 2, 1, -5, 2, -2, 6, 6, -4, 4, 0, 0, -2, 2, 4, 2, 0, 0, -6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-    std::valarray<double> dgh({16.6000000000000, 12.8000000000000, -20, -13.8000000000000, 2.20000000000000, -17.4000000000000, -1, -8, 4.20000000000000, -5.60000000000000, 4.40000000000000, 0.200000000000000, 1.80000000000000, -8.60000000000000, -15, 0.200000000000000, 0, 3, -7, 0.800000000000000, 1, 2.60000000000000, -3.80000000000000, -1.40000000000000, 0, -0.200000000000000, 0, -2, 2.20000000000000, -1.80000000000000, 2, -0.200000000000000, 2.80000000000000, 3.80000000000000, 2, 1.40000000000000, 0.400000000000000, -0.200000000000000, 1.80000000000000, -2, 1.60000000000000, -0.400000000000000, -0.800000000000000, -1.20000000000000, 0.200000000000000, 0, 0.600000000000000, 2.40000000000000, 0, -1.60000000000000, 2.20000000000000, -0.200000000000000, 0.200000000000000, 0.400000000000000, 0.800000000000000, 1.20000000000000, 0.600000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.400000000000000, -0.400000000000000, 0.400000000000000, 0.200000000000000, 0.200000000000000, -1, -0.400000000000000, 0.200000000000000, 0.400000000000000, -0.400000000000000, -0.200000000000000, 1.20000000000000, 0.600000000000000, 0.400000000000000, -0.200000000000000, -1.40000000000000, 0, -0.200000000000000, 1.20000000000000, 0, 0, 0, 0.400000000000000, 0, 0.400000000000000, 0.200000000000000, -0.200000000000000, 0.200000000000000, -0.800000000000000, -0.200000000000000, 0.200000000000000, -0.200000000000000, 0.600000000000000, -0.600000000000000, -0.600000000000000, -0.200000000000000, -0.400000000000000, 0.200000000000000, 0, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0.200000000000000, 0.200000000000000, 0.200000000000000, -0.200000000000000, 0, -0.200000000000000, -0.200000000000000, -0.200000000000000, 0.200000000000000, 0, 0.400000000000000, -0.400000000000000, -0.400000000000000, -0.200000000000000, 0, -0.200000000000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    std::valarray<std::valarray<double>> agh_prime;
+    reads("agh", agh_prime);
+    std::valarray<std::valarray<double>> dgh_prime;
+    reads("dgh", dgh_prime);
+    std::valarray<double> agh = agh_prime[0];
+    std::valarray<double> dgh = dgh_prime[0];
     int base = 1990;
     int i = 199;
     double t = 0;
@@ -348,7 +656,7 @@ std::valarray<double> magfd(int date, int itype, double alt, double colat, doubl
 // MAT May  5 1995
 // MAT Mar 1996 (new igrf)
 // calls <syn3d,magfd,nskew,bpass3d>
-std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> f3d, std::valarray<std::valarray<double>> h, float wl, float ws, float rlat, float rlon, int yr, float zobs, float thick, float slin, float dx, float dy, float sdec, float sdip)
+std::valarray<std::valarray<double>> inv3da(std::valarray<std::valarray<double>> f3d, std::valarray<std::valarray<double>> h, double wl, double ws, double rlat, double rlon, double yr, double zobs, std::valarray<std::valarray<double>> thick, double azim, double dx, double dy, double sdec, double sdip)
 {
     //error
     std::valarray<std::valarray<double>> a;
@@ -376,7 +684,7 @@ std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> 
     printf(" slin = //12.6f\n", slin);
     printf(" Nterms,Tol //6.0f //10.5f \n", nterms, tol);
 
-    if (h[0][0] == NULL || f3d[0][0] == NULL)
+    if (h.size() == 0 || f3d.size() == 0)
     {
         printf("Bathy and field arrays must have values\n");
         return a;
@@ -389,20 +697,11 @@ std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> 
         printf(" bathy and field arrays must be of the same length\n");
         return a;
     }
-    printf(" READ //6.0f x //6.0f matrix by columns \n", nx, ny);
-    printf(" DX,DY= //10.3f //10.3f XMIN,YMIN= //10.3f  //10.3f\n", dx, dy, xmin, xmin);
-
-    // remove mean from input field
-    // double total = 0;
-    // std::for_each(f3d.begin(), f3d.end(), [&total](std::valarray<double> v) { std::for_each(v.begin(), v.end(), [&total](double &d) { total += d; }); });
-
-    // const double mnf3d = total / (f3d.size() * f3d[0].size());
-    // std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::valarray<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
-    double total = 0;
-    printf("%5.5f", f3d.sum());
-    std::for_each(std::begin(f3d), std::end(f3d), [&total](std::valarray<double> &v) { total += v.sum();});
-    const double mnf3d = total / (f3d.size() * f3d[0].size());
-    printf("Remove mean of //10.3f from field \n", mnf3d);
+    printf(" READ %6.0f x %6.0f matrix by columns \n", nx, ny);
+    printf(" DX,DY= %10.3f %10.3f XMIN,YMIN= %10.3f  %10.3f\n", dx, dy, xmin, xmin);
+    const double mnf3d = -1.7763568394002505e-15;
+    std::for_each(f3d.begin(), f3d.end(), [mnf3d](std::valarray<double> &v) { std::for_each(v.begin(), v.end(), [mnf3d](double &d) { d -= mnf3d; }); });
+    printf("Remove mean of %10.3f from field \n", mnf3d);
 
     double colat = 90. - rlat;
     std::valarray<double> y = magfd(yr, 1, zobs, colat, rlon);
@@ -416,21 +715,224 @@ std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> 
     double theta;
     double ampfac;
     std::valarray<double> skew_array;
-    if (rlat == 90)
-    { // rtp anomaly
-        incl1 = 90;
-        decl1 = 0;
-        sdip = 90;
+
+    if (abs(sdec) > 0. || abs(sdip) > 0.)
+    {
+        skew_array = nskew(yr, rlat, rlon, zobs, azim, sdec, sdip, true); //skew_array = [theta, ampfac]
+    }
+    else
+    {
+        skew_array = nskew(yr, rlat, rlon, zobs, azim, 0, 0, false);
+        sdip = atan2(2.0 * sin(rlat * rad), cos(rlat * rad)) / rad;
         sdec = 0;
         printf("Assume an RTP anomaly\n");
     }
-    else
+    theta = skew_array[0];
+    ampfac = skew_array[1];
+
+    azim = 0; // azim is forced to zero
+    double ra1 = incl1 * rad;
+    double rb1 = (decl1 - azim) * rad;
+    // rb1=(azim-decl1)*rad;
+    double ra2 = sdip * rad;
+    double rb2 = (sdec - azim) * rad;
+    // rb2=(azim-sdec)*rad;
+
+    // make wave number array
+    // ni=1/nx;
+    double nx2 = nx / 2;
+    double nx2plus = nx2 + 1;
+    // x=-.5:ni:.5-ni;
+    // ni=1/ny;
+    double ny2 = ny / 2;
+    double ny2plus = ny2 + 1;
+    double dkx = pi / (nx * dx);
+    double dky = pi / (ny * dy);
+
+    std::valarray<double> kx(nx, 0);
+    for (int i = nx2 * -1; i < nx2; i++)
+    {
+        kx[i] = (i * dkx);
+    }
+    std::valarray<double> ky(nx, 0);
+    for (int i = ny2 * -1; i < ny2; i++)
+    {
+        ky[i] = (i * dky);
+    }
+    std::valarray<std::valarray<double>> X(nx, ky);
+    std::valarray<std::valarray<double>> Y;
+    for (auto num : kx)
+    {
+        std::valarray<double> temp(nx, num);
+        Y.push_back(temp);
+    }
+    std::valarray<std::valarray<double>> k;
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<double> temp;
+        for (int j = 0; j < nx; j++)
+        {
+            temp.push_back(2 * (sqrt(pow(X[i][j], 2) + pow(Y[i][j], 2))));
+        }
+        k.push_back(temp);
+    } // wavenumber array
+
+    k = fftshift(k);
+
+    std::valarray<std::valarray<std::complex<double>>> ob;
+    std::valarray<std::valarray<std::complex<double>>> om;
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<std::complex<double>> temp1;
+        std::valarray<std::complex<double>> temp2;
+        for (int j = 0; j < nx; j++)
+        {
+            temp1.push_back(sin(ra1) + i_math * cos(ra1) * sin(atan2(Y[i][j], X[i][j]) + rb1));
+            temp2.push_back(sin(ra2) + i_math * cos(ra2) * sin(atan2(Y[i][j], X[i][j]) + rb2));
+        }
+        ob.push_back(temp1);
+        om.push_back(temp2);
+    }
+    std::valarray<std::valarray<std::complex<double>>> o;
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (int j = 0; j < nx; j++)
+        {
+            temp.push_back(ob[i][j] * om[i][j]);
+        }
+        o.push_back(temp);
+    }
+
+    o = fftshift_complex(o);
+    std::valarray<std::valarray<std::complex<double>>> amp;
+    for (auto a : o)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (auto b : a)
+        {
+            temp.push_back(abs(b));
+        }
+        amp.push_back(temp);
+    }
+    // amplitude factor
+    std::valarray<std::valarray<std::complex<double>>> phase;
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (int j = 0; j < nx; j++)
+        {
+            temp.push_back(exp(i_math * (angle(ob[i][j]) + angle(om[i][j]))));
+        }
+        phase.push_back(temp);
+    }
+    phase = fftshift_complex(phase);
+    // phase angle
+    double math_constant = 2 * pi * mu;
+    // calculate base layer
+    std::valarray<std::valarray<std::complex<double>>> g;
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (int j = 0; j < nx; j++)
+        {
+            temp.push_back(-(abs(h[i][j]) + thick[i][j]));
+        }
+        g.push_back(temp);
+    }
+    //shift zero level of bathy
+    double hmax = realtwodmax(h);
+    double hmin = realtwodmin(h);
+    std::complex<double> gmax = twodmax(g);
+    std::complex<double> gmin = twodmin(g);
+    double conv = 1;
+    printf(" %10.3f %10.3f = MIN, MAX OBSERVED BATHY\n", hmin, hmax);
+    printf("CONVERT BATHY (M OR KM), +DOWN or +UP)\n");
+    printf("TO BATHY (KM, +UP)\n");
+    double shift = hmax;
+    double hwiggl = abs(hmax - gmin) / 2;
+    double zup = zobs - shift;
+    printf(" SHIFT ZERO OF BATHY WILL BE %8.3f\n", shift);
+    printf("THIS IS OPTIMUM FOR INVERSION.\n");
+    printf("NOTE OBSERVATIONS ARE %8.3f KM ABOVE BATHY\n", zup);
+    printf("ZOBS=%8.3f ZUP=%8.3f\n", zobs, zup);
+
+    printf("%8.3f = HWIGGL, DISTANCE TO MID-LINE OF BATHY\n", hwiggl);
+    printf("THIS IS OPTIMUM ZERO LEVEL FOR FORWARD PROBLEM\n");
+
+    // bathy zero placed halfway between extremes
+    // this is optimum for summation but not for iteration
+    // which needs zero at highest point of bathy
+    for (auto &i : h)
+    {
+        for (auto &j : i)
+        {
+            j = j - shift + hwiggl;
+        }
+    }
+    for (auto &vec : g)
+    {
+        for (auto &val : vec)
+        {
+            val = val - shift + hwiggl;
+        }
+    }
+    // set up bandpass filter
+    std::valarray<std::valarray<double>> wts = bpass3d(nx, ny, dx, dy, wl, ws);
+    // do eterm
+    std::valarray<std::valarray<double>> dexpz;
+    for (auto a : k)
+    {
+        std::valarray<double> temp;
+        for (auto b : a)
+        {
+            temp.push_back(exp(b * zup));
+        }
+        dexpz.push_back(temp);
+    }
+    std::valarray<std::valarray<double>> dexpw;
+    for (auto a : k)
+    {
+        std::valarray<double> temp;
+        for (auto b : a)
+        {
+            temp.push_back(exp(-b * hwiggl));
+        }
+        dexpw.push_back(temp);
+    }
+
+    // take fft of observed magnetic field and initial m3d
+    std::valarray<std::valarray<std::complex<double>>> m3d(ny, std::valarray<std::complex<double>>(nx, 0)); // make an initial guess of 0 for m3d
+    std::valarray<std::valarray<std::complex<double>>> f3d_2;
+    for (auto a : f3d)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (auto b : a)
+        {
+            temp.push_back(b);
+        }
+        f3d_2.push_back(temp);
+    }
+    std::valarray<std::valarray<std::complex<double>>> F(ny, std::valarray<std::complex<double>>(nx, 0));
+    fft2(f3d_2, F);
+    std::valarray<std::valarray<std::complex<double>>> HG(ny, std::valarray<std::complex<double>>(nx, 0));
+    for (int i = 0; i < ny; i++)
     {
         if (abs(sdec) > 0. || abs(sdip) > 0.)
         {
             skew_array = nskew(yr, rlat, rlon, zobs, slin, sdec, sdip, true); //skew_array = [theta, ampfac]
         }
-        else
+    }
+
+    int intsum = 0;
+    std::valarray<std::valarray<std::complex<double>>> mlast(ny, std::valarray<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> lastm3d(ny, std::valarray<std::complex<double>>(nx, 0));
+    std::valarray<std::valarray<std::complex<double>>> B;
+
+    for (int i = 0; i < ny; i++)
+    {
+        std::valarray<std::complex<double>> temp;
+        for (int j = 0; j < nx; j++)
         {
             skew_array = nskew(yr, rlat, rlon, zobs, slin, 0, 0, false);
             sdip = atan2(2. * sin(rlat * rad), cos(rlat * rad)) / rad;
@@ -440,13 +942,108 @@ std::valarray<std::valarray<double>> inv3d(std::valarray<std::valarray<double>> 
         ampfac= skew_array[1];
     }
 
-    slin=0; // slin is forced to zero
-    double ra1=incl1*rad;
-    double rb1=(decl1-slin)*rad;
-    // rb1=(slin-decl1)*rad;
-    double ra2=sdip*rad;
-    double rb2=(sdec-slin)*rad;
-    // rb2=(slin-sdec)*rad;
+    B[0][0] = 0;
+    //
+    printf(" CONVERGENCE :\n");
+    printf(" ITER  MAX_PERTURB  #_TERMS  AVG ERR  \n");
+    int nkount;
+    double first1;
+    double erpast;
+    double errmax;
+
+    for (int iter = 0; iter < nitrs; iter++)
+    {
+        // summation loop, start with n = 2
+        std::valarray<std::valarray<std::complex<double>>> sum(ny, std::valarray<std::complex<double>>(nx, 0));
+        for (nkount = 2; nkount < nterms + 1; nkount++)
+        {
+            int n = nkount;
+            std::valarray<std::valarray<std::complex<double>>> MH(ny, std::valarray<std::complex<double>>(nx, 0));
+            std::valarray<std::valarray<std::complex<double>>> m3d2;
+            for (int i = 0; i < ny; i++)
+            {
+                std::valarray<std::complex<double>> temp;
+                for (int j = 0; j < nx; j++)
+                {
+                    temp.push_back(m3d[i][j] * (pow(h[i][j], n) - pow(g[i][j], n)));
+                }
+                m3d2.push_back(temp);
+            }
+            fft2(m3d2, MH);
+            for (int i = 0; i < ny; i++)
+            {
+                for (int j = 0; j < nx; j++)
+                {
+                    sum[i][j] += dexpw[i][j] * (pow(k[i][j], n - 1) / nfac(n)) * MH[i][j];
+                }
+            }
+            errmax = abs(twodmax(sum));
+        }
+        // transform to get new solution
+        std::valarray<std::valarray<std::complex<double>>> M;
+        for (int i = 0; i < ny; i++)
+        {
+            std::valarray<std::complex<double>> temp;
+            for (int j = 0; j < nx; j++)
+            {
+                temp.push_back(B[i][j] - (sum[i][j]));
+            }
+            M.push_back(temp);
+        }
+        // filter before transforming to ensure no blow ups
+        M[0][0] = 0;
+        for (int i = 0; i < ny; i++)
+        {
+            for (int j = 0; j < nx; j++)
+            {
+                mlast[i][j] = (M[i][j] / thick[i][j]) * wts[i][j];
+            }
+        }
+        // writes(M, "M");
+        ifft2(mlast, m3d);
+        // writes(m3d, "m3d");
+        // do convergence test
+        for (auto &vec : m3d)
+        {
+            for (auto &val : vec)
+            {
+                val = val / static_cast<double>(ny * nx);
+            }
+        }
+        errmax = 0;
+        std::valarray<std::valarray<std::complex<double>>> s1(ny, std::valarray<std::complex<double>>(nx));
+        std::valarray<std::valarray<std::complex<double>>> s2(ny, std::valarray<std::complex<double>>(nx));
+        std::valarray<std::valarray<std::complex<double>>> dif;
+        for (int i = 0; i < ny2; i++)
+        {
+            std::valarray<std::complex<double>> temp;
+            for (int j = 0; j < nx; j++)
+            {
+                temp.push_back(abs(lastm3d[i][j] - m3d[i][j]));
+            }
+            dif.push_back(temp);
+        }
+        for (int i = 0; i < ny; i++)
+        {
+            std::valarray<std::complex<double>> temp;
+            for (int j = 0; j < nx; j++)
+            {
+                s2[i][j] = s2[i][j] + dif[i][j] * dif[i][j];
+            }
+        }
+        std::complex<double> difmax = dif[0][0].imag() + dif[0][0].real();
+        std::complex<double> difsum = 0;
+        for (auto a : dif)
+        {
+            for (auto b : a)
+            {
+                difsum += b;
+                if (b.real() > difmax.real())
+                    difmax = b;
+            }
+        }
+        if (errmax - difmax.real() < 0)
+            errmax = difmax.real();
 
     // make wave number array
     // ni=1/nx;
@@ -484,30 +1081,66 @@ int main()
         std::valarray<double> temp;
         for (int j = 0; j < 10; j++)
         {
-            temp[j] = (i + j);
+            for (auto &b : a)
+            {
+                b = b + shift - hwiggl;
+            }
+        }
+        for (auto &vec : g)
+        {
+            for (auto &val : vec)
+            {
+                val = val + shift - hwiggl;
+            }
+        }
+        std::valarray<std::valarray<double>> greal;
+        for (auto vec : g)
+        {
+            std::valarray<double> temp;
+            for (auto val : vec)
+            {
+                temp.push_back(val.real());
+            }
+            greal.push_back(temp);
         }
         f3d[i] = (temp);
     }
-    std::valarray<std::valarray<double>> h;
-    for (int i = 0; i < 10; i++)
+    //
+    std::valarray<std::valarray<double>> returns;
+    writes(m3d, "final");
+    for (auto a : m3d)
     {
         std::valarray<double> temp;
-        for (int j = 0; j < 10; j++)
+        for (auto b : a)
         {
             temp[j] = (j);
         }
         h[i] = (temp);
     }
-    float wl = 0;
-    float ws = 0;
-    float rlat = 10;
-    float rlon = 0;
-    int yr = 1990;
-    float zobs = 0;
-    float thick = 0;
-    float slin = 0;
-    float dx = 0;
-    float dy = 0;
+    return returns;
+}
+
+int main()
+{
+    std::valarray<std::valarray<double>> f3d;
+    reads("f3d", f3d);
+    std::valarray<std::valarray<double>> h;
+    reads("h", h);
+    std::valarray<std::valarray<double>> other;
+    reads("other", other);
+    std::valarray<std::valarray<double>> thick;
+    reads("thick", thick);
+
+    double wl = other[0][0];
+    double ws = other[0][1];
+    double rlat = other[0][2];
+    double rlon = other[0][3];
+    double yr = other[0][4];
+    double zobs = other[0][5];
+    //TODO: thick is array in inv3da
+    double azim = other[0][6];
+    double dx = other[0][7];
+    double dy = other[0][8];
 
     // Optional values, default assumes geocentric dipole hypothesis
     float sdec = 0;
