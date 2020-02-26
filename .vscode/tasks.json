@@ -20,6 +20,8 @@
             "command": "make",
             "args": [
                 "run",
+                "-L~/usr/include",
+                "-lfftw3",
             ]
         }
     ]

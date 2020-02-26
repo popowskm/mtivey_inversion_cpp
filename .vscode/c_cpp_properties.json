@@ -1,16 +1,22 @@
 {
     "configurations": [
-        
         {
             "name": "WSL",
             "intelliSenseMode": "gcc-x64",
             "compilerPath": "/usr/bin/gcc",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/",
+                "/usr/lib/",
+                "/usr/include/",
+                "/usr/local/lib/"
             ],
             "defines": [],
             "cStandard": "c11",
-            "cppStandard": "c++17"
+            "cppStandard": "c++17",
+            "browse": {
+                "path": [],
+                "limitSymbolsToIncludedHeaders": true
+            }
         }
     ],
     "version": 4
