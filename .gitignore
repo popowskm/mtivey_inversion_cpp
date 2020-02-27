@@ -34,3 +34,6 @@ f3d2
 f3d
 M
 F
+mem
+.vscode/launch.json
+bin/main

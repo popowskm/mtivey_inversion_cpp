@@ -802,15 +802,15 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     double dkx = pi / (nx * dx);
     double dky = pi / (ny * dy);
 
-    std::vector<double> kx(nx, 0);
+    std::vector<double> kx;
     for (int i = nx2 * -1; i < nx2; i++)
     {
-        kx[i] = (i * dkx);
+        kx.push_back(i * dkx);
     }
-    std::vector<double> ky(nx, 0);
+    std::vector<double> ky;
     for (int i = ny2 * -1; i < ny2; i++)
     {
-        ky[i] = (i * dky);
+        ky.push_back(i * dky);
     }
     std::vector<std::vector<double>> X(nx, ky);
     std::vector<std::vector<double>> Y;
@@ -1073,14 +1073,15 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
             }
             dif.push_back(temp);
         }
-        for (int i = 0; i < ny; i++)
-        {
-            std::vector<std::complex<double>> temp;
-            for (int j = 0; j < nx; j++)
-            {
-                s2[i][j] = s2[i][j] + dif[i][j] * dif[i][j];
-            }
-        }
+        // For RMS only
+        // for (int i = 0; i < ny; i++)
+        // {
+        //     std::vector<std::complex<double>> temp;
+        //     for (int j = 0; j < nx; j++)
+        //     {
+        //         s2[i][j] = s2[i][j] + dif[i][j] * dif[i][j];
+        //     }
+        // }
         std::complex<double> difmax = dif[0][0].imag() + dif[0][0].real();
         std::complex<double> difsum = 0;
         for (auto a : dif)
