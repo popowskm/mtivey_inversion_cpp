@@ -1170,16 +1170,33 @@ std::vector<std::vector<double>> inv3da(std::vector<std::vector<double>> f3d, st
     return returns;
 }
 
-int main()
+// Expects field, bathymetry, thickness, other file
+int main(int argc, char *argv[])
 {
     std::vector<std::vector<double>> f3d;
-    reads("f3d", f3d);
     std::vector<std::vector<double>> h;
-    reads("h", h);
-    std::vector<std::vector<double>> other;
-    reads("other", other);
     std::vector<std::vector<double>> thick;
-    reads("thick", thick);
+    std::vector<std::vector<double>> other;
+
+    if (argc == 1)
+    {
+        reads("f3d", f3d);
+        reads("h", h);
+        reads("thick", thick);
+        reads("other", other);
+    }
+    else if (argc == 5)
+    {
+        reads(argv[1], f3d);
+        reads(argv[2], h);
+        reads(argv[3], thick);
+        reads(argv[4], other);
+    }
+    else 
+    {
+        std::cout<<"Incorrect number of parameters. Exiting."<<std::endl;
+        return 0;
+    }
 
     double wl = other[0][0];
     double ws = other[0][1];
@@ -1187,7 +1204,6 @@ int main()
     double rlon = other[0][3];
     double yr = other[0][4];
     double zobs = other[0][5];
-    //TODO: thick is array in inv3da
     double azim = other[0][6];
     double dx = other[0][7];
     double dy = other[0][8];
