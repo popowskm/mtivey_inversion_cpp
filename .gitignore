@@ -25,7 +25,6 @@ $RECYCLE.BIN/
 # =========================
 *.exe
 *.stackdump
-bin/main
 mlast
 m3d2
 m3d
