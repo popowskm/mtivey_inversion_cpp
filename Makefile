@@ -1,5 +1,6 @@
 CXX		  := g++
-CXX_FLAGS := -Wall -Wextra -std=c++17 -ggdb
+#CXX_WIN	  := x86_64-w64-mingw32-g++
+CXX_FLAGS := -Wall -Wextra -std=c++17 -ggdb -static
 
 BIN		:= bin
 SRC		:= src
@@ -8,9 +9,10 @@ LIB		:= $FFTW_LIB
 
 LIBRARIES	:= -lfftw3
 EXECUTABLE	:= main
+WIN_EXECUTABLE := main_win.exe
 
 
-all: $(BIN)/$(EXECUTABLE)
+all: $(BIN)/$(EXECUTABLE) #$(BIN)/$(WIN_EXECUTABLE)
 
 run: clean all
 	clear
@@ -18,6 +20,9 @@ run: clean all
 
 $(BIN)/$(EXECUTABLE): $(SRC)/*.cpp
 	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
+
+#$(BIN)/$(WIN_EXECUTABLE): $(SRC)/*.cpp
+#	$(CXX_WIN) $(CXX_FLAGS) -I$(INCLUDE) -L$(LIB) $^ -o $@ $(LIBRARIES)
 
 clean:
 	-rm $(BIN)/*
