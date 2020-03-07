@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fftw3.h>
+#include <string.h>
 
 #define pi 3.141592653589793
 std::vector<double> magfd(int date, int itype, double alt, double colat, double elong);
@@ -1177,6 +1178,15 @@ int main(int argc, char *argv[])
     std::vector<std::vector<double>> h;
     std::vector<std::vector<double>> thick;
     std::vector<std::vector<double>> other;
+    double wl;
+    double ws;
+    double rlat;
+    double rlon;
+    double yr;
+    double zobs;
+    double azim;
+    double dx;
+    double dy;
 
     if (argc == 1)
     {
@@ -1185,6 +1195,12 @@ int main(int argc, char *argv[])
         reads("thick", thick);
         reads("other", other);
     }
+    else if (argc == 2 && !strcmp(argv[1], "help"))
+    {
+        std::cout<<"Parameters:"<<std::endl<<"Field, bathymetry, thickness, other (wl, ws, rlat, rlon, yr, zobs, azim, dx, dy)"<<std::endl;
+        return 0;
+    }
+    
     else if (argc == 5)
     {
         reads(argv[1], f3d);
@@ -1192,22 +1208,39 @@ int main(int argc, char *argv[])
         reads(argv[3], thick);
         reads(argv[4], other);
     }
+    else if (argc == 13)
+    {
+        reads(argv[1], f3d);
+        reads(argv[2], h);
+        reads(argv[3], thick);
+        wl = atof(argv[4]);
+        ws = atof(argv[5]);
+        rlat = atof(argv[6]);
+        rlon = atof(argv[7]);
+        yr = atof(argv[8]);
+        zobs = atof(argv[9]);
+        azim = atof(argv[10]);
+        dx = atof(argv[11]);
+        dy = atof(argv[12]);
+    }
+    
     else 
     {
         std::cout<<"Incorrect number of parameters. Exiting."<<std::endl;
         return 0;
     }
-
-    double wl = other[0][0];
-    double ws = other[0][1];
-    double rlat = other[0][2];
-    double rlon = other[0][3];
-    double yr = other[0][4];
-    double zobs = other[0][5];
-    double azim = other[0][6];
-    double dx = other[0][7];
-    double dy = other[0][8];
-
+    if (argc < 13)
+    {
+        wl = other[0][0];
+        ws = other[0][1];
+        rlat = other[0][2];
+        rlon = other[0][3];
+        yr = other[0][4];
+        zobs = other[0][5];
+        azim = other[0][6];
+        dx = other[0][7];
+        dy = other[0][8];
+    }
     // Optional values, default assumes geocentric dipole hypothesis
     double sdec = 0;
     double sdip = 0;
